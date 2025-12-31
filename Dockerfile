@@ -1,7 +1,7 @@
 # AumCoin Build Environment
-# Ubuntu 20.04 with OpenSSL 1.1.x for compatibility with v0.6.3c codebase
+# Ubuntu 18.04 with OpenSSL 1.1.1 for compatibility with v0.6.3c codebase
 
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
