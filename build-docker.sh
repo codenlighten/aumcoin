@@ -23,7 +23,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-echo -e "${BLUE}Step 1: Building Docker image (Ubuntu 18.04 + OpenSSL 1.1.1)...${NC}"
+echo -e "${BLUE}Step 1: Building Docker image (Ubuntu 16.04 + OpenSSL 1.0.2)...${NC}"
 docker build -t aumcoin:latest .
 
 if [ $? -eq 0 ]; then
