@@ -247,8 +247,10 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
     valtype vchPushValue;
     vector<bool> vfExec;
     vector<valtype> altstack;
-    if (script.size() > 10000)
-        return false;
+    // SATOSHI VISION: Removed 10KB script size limit
+    // Original Bitcoin had no such limit - enables complex smart contracts
+    // if (script.size() > 10000)
+    //     return false;
     int nOpCount = 0;
 
 
@@ -263,27 +265,18 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
             //
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return false;
-            if (vchPushValue.size() > 520)
+            // SATOSHI VISION: Increased push value size from 520 bytes to 10KB
+            if (vchPushValue.size() > 10240)
                 return false;
             if (opcode > OP_16 && ++nOpCount > 201)
                 return false;
 
-            if (opcode == OP_CAT ||
-                opcode == OP_SUBSTR ||
-                opcode == OP_LEFT ||
-                opcode == OP_RIGHT ||
-                opcode == OP_INVERT ||
-                opcode == OP_AND ||
-                opcode == OP_OR ||
-                opcode == OP_XOR ||
-                opcode == OP_2MUL ||
-                opcode == OP_2DIV ||
-                opcode == OP_MUL ||
-                opcode == OP_DIV ||
-                opcode == OP_MOD ||
-                opcode == OP_LSHIFT ||
-                opcode == OP_RSHIFT)
-                return false;
+            // SATOSHI VISION RESTORATION: All original OP_CODES now enabled!
+            // Removed OP_CODE blocking that was added in Bitcoin 0.3.x
+            // This restores OP_CAT, OP_SUBSTR, OP_LEFT, OP_RIGHT, OP_INVERT,
+            // OP_AND, OP_OR, OP_XOR, OP_2MUL, OP_2DIV, OP_MUL, OP_DIV,
+            // OP_MOD, OP_LSHIFT, and OP_RSHIFT functionality.
+            // All implementations remain intact below in the switch statement.
 
             if (fExec && 0 <= opcode && opcode <= OP_PUSHDATA4)
                 stack.push_back(vchPushValue);
@@ -593,7 +586,8 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     valtype& vch2 = stacktop(-1);
                     vch1.insert(vch1.end(), vch2.begin(), vch2.end());
                     popstack(stack);
-                    if (stacktop(-1).size() > 520)
+                    // SATOSHI VISION: Increased concatenation result limit to 10KB
+                    if (stacktop(-1).size() > 10240)
                         return false;
                 }
                 break;

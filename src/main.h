@@ -26,7 +26,10 @@ class CInv;
 class CRequestTracker;
 class CNode;
 
-static const unsigned int MAX_BLOCK_SIZE = 1000000;
+// SATOSHI VISION: Massive block size increase for scalability
+// Original Bitcoin had no block size limit until 2010
+// Following BSV philosophy but with Litecoin's proven tech
+static const unsigned int MAX_BLOCK_SIZE = 128000000;        // 128 MB (was 1 MB)
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
