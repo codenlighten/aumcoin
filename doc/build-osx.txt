@@ -8,7 +8,7 @@ cryptographic software written by Eric Young (eay@cryptsoft.com) and UPnP
 software written by Thomas Bernard.
 
 
-Mac OS X litecoind build instructions
+Mac OS X aumcoind build instructions
 Laszlo Hanyecz <solar@heliacal.net>
 Douglas Huff <dhuff@jrbobdobbs.org>
 
@@ -42,14 +42,14 @@ sudo port install boost db48 openssl miniupnpc
 Optionally install qrencode (and set USE_QRCODE=1):
 sudo port install qrencode
 
-4.  Now you should be able to build litecoind:
+4.  Now you should be able to build aumcoind:
 
 cd litecoin/src
 make -f makefile.osx USE_IPV6=1
 
 Run:
-  ./litecoind --help  # for a list of command-line options.
+  ./aumcoind --help  # for a list of command-line options.
 Run
-  ./litecoind -daemon # to start the litecoin daemon.
+  ./aumcoind -daemon # to start the litecoin daemon.
 Run
-  ./litecoind help # When the daemon is running, to get a list of RPC commands
+  ./aumcoind help # When the daemon is running, to get a list of RPC commands

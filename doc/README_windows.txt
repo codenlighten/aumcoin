@@ -19,11 +19,11 @@ with each other, with the help of a P2P network to check for double-spending.
 
 Setup
 -----
-Unpack the files into a directory and run litecoin-qt.exe.
+Unpack the files into a directory and run aumcoin-qt.exe.
 
-If you have Microsoft Security Essentials, you need to add litecoin-qt.exe to its
+If you have Microsoft Security Essentials, you need to add aumcoin-qt.exe to its
 "Excluded processes" list.  Microsoft Security Essentials->Settings tab,
-select Excluded processes, press Add, select litecoin-qt.exe, OK, Save changes.
+select Excluded processes, press Add, select aumcoin-qt.exe, OK, Save changes.
 
 The software automatically finds other nodes to connect to.  You can
 enable Universal Plug and Play using a menu entry or set your firewall

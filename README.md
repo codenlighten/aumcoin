@@ -1,4 +1,4 @@
-# LightCoin-PQ: Satoshi Vision + Post-Quantum
+# AumCoin: Satoshi Vision + Post-Quantum
 
 > **A fork of Litecoin v0.6.3c with all original Bitcoin OP_CODES restored and massive scalability**
 
@@ -8,7 +8,7 @@
 
 ## 🎯 Project Vision
 
-LightCoin-PQ restores **Satoshi Nakamoto's original vision** for Bitcoin as programmable electronic cash, built on Litecoin's proven foundation. We've re-enabled all the powerful OP_CODES that were disabled in early Bitcoin, removed artificial scaling limits, and are preparing for the post-quantum cryptography future.
+AumCoin restores **Satoshi Nakamoto's original vision** for Bitcoin as programmable electronic cash, built on Litecoin's proven foundation. We've re-enabled all the powerful OP_CODES that were disabled in early Bitcoin, removed artificial scaling limits, and are preparing for the post-quantum cryptography future.
 
 **Why this matters:** Bitcoin was designed with ~200 OP_CODES for rich smart contract capabilities, but most were disabled due to early security concerns. We bring them back, safely.
 
@@ -47,7 +47,7 @@ if (opcode == OP_CAT || opcode == OP_MUL || ...)
     return false; // DISABLED
 ```
 
-**After (LightCoin-PQ):**
+**After (AumCoin):**
 ```cpp
 // All OP_CODES now enabled!
 // Full implementations active
@@ -62,7 +62,7 @@ if (opcode == OP_CAT || opcode == OP_MUL || ...)
 
 ## 📊 Comparison Table
 
-| Feature | LightCoin-PQ | Bitcoin | Litecoin | BSV |
+| Feature | AumCoin | Bitcoin | Litecoin | BSV |
 |---------|--------------|---------|----------|-----|
 | **All OP_CODES** | ✅ 15 restored | ❌ Disabled | ❌ Disabled | ✅ Enabled |
 | **Block Size** | ✅ 128 MB | ❌ 1-4 MB | ❌ 1 MB | ✅ 4 GB |
@@ -99,7 +99,7 @@ make -f makefile.unix
 
 ### Run
 ```bash
-./litecoind
+./aumcoind
 ```
 
 ## 📖 Documentation
@@ -113,7 +113,7 @@ make -f makefile.unix
 Test OP_CAT (string concatenation):
 ```bash
 # Start the client
-./litecoind -testnet
+./aumcoind -testnet
 
 # Create a script with OP_CAT
 # Concatenates "Hello" + "World" = "HelloWorld"
@@ -126,7 +126,7 @@ See TESTING.md for 50+ test cases covering all restored OP_CODES.
 
 - [x] **Phase 1**: OP_CODE Restoration ✅ COMPLETE
 - [x] **Phase 2**: Block Size Liberation ✅ COMPLETE
-- [ ] **Phase 3**: Rebranding (rename to LightCoin-PQ, new genesis)
+- [ ] **Phase 3**: Rebranding (rename to AumCoin, new genesis)
 - [ ] **Phase 4**: Post-Quantum Cryptography (research & implementation)
 
 ## 🤔 Why Fork Litecoin Instead of Bitcoin?
@@ -146,7 +146,7 @@ BSV has similar goals (restore OP_CODES, big blocks), but:
 - ❌ Same POW as Bitcoin (SHA-256)
 - ❌ Complex modern codebase
 
-LightCoin-PQ gives you the **technical benefits without the baggage**.
+AumCoin gives you the **technical benefits without the baggage**.
 
 ## 📜 Philosophy: Satoshi's Original Vision
 
@@ -191,7 +191,7 @@ MIT/X11 License
 
 - Original Bitcoin: Copyright (c) 2009-2010 Satoshi Nakamoto
 - Original Litecoin: Copyright (c) 2011-2012 Litecoin Developers  
-- LightCoin-PQ Fork: Copyright (c) 2025 LightCoin-PQ Developers
+- AumCoin Fork: Copyright (c) 2025 AumCoin Developers
 
 See [COPYING](COPYING) for details.
 
