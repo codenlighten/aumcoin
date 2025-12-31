@@ -1,7 +1,7 @@
 src/*.exe
-src/litecoin
-src/litecoind
-src/test_litecoin
+src/aumcoin
+src/aumcoind
+src/test_aumcoin
 src/build.h
 .*.swp
 *.*~*
@@ -10,11 +10,11 @@ src/build.h
 *.orig
 *.o
 *.patch
-.bitcoin
+.aumcoin
 #compilation and Qt preprocessor part
 *.qm
 Makefile
-litecoin-qt
+aumcoin-qt
 #resources cpp
 qrc_*.cpp
 #qt creator
