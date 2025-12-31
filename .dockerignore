@@ -1,0 +1,40 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+src/aumcoind
+src/aumcoin-qt
+src/test_aumcoin
+src/*.o
+src/obj/
+src/obj-test/
+src/build/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (copied separately if needed)
+*.md
+doc/*.md
+
+# Mac OS
+.DS_Store
+
+# Data directories
+.aumcoin/
+wallets/
+
+# Binary outputs
+aumcoind
+aumcoin-qt
+
+# Logs
+*.log
+debug.log

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  aumcoin:
+    build: .
+    container_name: aumcoin-node
+    ports:
+      - "9443:9443"  # P2P port
+      - "9442:9442"  # RPC port
+    volumes:
+      - aumcoin-data:/root/.aumcoin
+      - ./src:/aumcoin/src:ro
+    environment:
+      - AUMCOIN_TESTNET=0
+    command: ./aumcoind -printtoconsole -server
+    restart: unless-stopped
+
+  aumcoin-testnet:
+    build: .
+    container_name: aumcoin-testnet
+    ports:
+      - "19443:19443"  # Testnet P2P port
+      - "19442:19442"  # Testnet RPC port (custom, update if needed)
+    volumes:
+      - aumcoin-testnet-data:/root/.aumcoin
+      - ./src:/aumcoin/src:ro
+    environment:
+      - AUMCOIN_TESTNET=1
+    command: ./aumcoind -printtoconsole -testnet -server
+    restart: unless-stopped
+    profiles:
+      - testnet
+
+volumes:
+  aumcoin-data:
+    driver: local
+  aumcoin-testnet-data:
+    driver: local
