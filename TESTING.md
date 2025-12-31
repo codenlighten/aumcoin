@@ -1,15 +1,71 @@
-# LightCoin-PQ Testing Guide
+# AumCoin Testing Guide
+
+## Build Requirements
+
+### OpenSSL Compatibility
+AumCoin v0.6.3c uses OpenSSL 1.x BIGNUM API. Modern systems with OpenSSL 3.x require compatibility:
+
+**Option 1: Docker Build (Recommended)**
+```bash
+# Use Ubuntu 18.04 or 20.04 with OpenSSL 1.1.x
+docker run -it -v $(pwd):/aumcoin ubuntu:20.04 bash
+cd /aumcoin/src
+apt-get update && apt-get install -y build-essential libssl-dev libboost-all-dev libdb++-dev
+make -f makefile.unix
+```
+
+**Option 2: OpenSSL 1.x on Host**
+```bash
+# Install OpenSSL 1.1.x compatibility (varies by distro)
+# Debian/Ubuntu:
+sudo apt-get install libssl1.1-dev
+# Arch: 
+# yay -S openssl-1.1
+```
+
+**Option 3: Modify Build Flags**
+```bash
+# Link against OpenSSL 1.1 if available
+cd src
+make -f makefile.unix OPENSSL=/usr/lib/openssl-1.1
+```
+
+### Genesis Block Mining
+
+After building, the genesis block needs to be mined:
+
+```bash
+# Enable genesis mining mode (already done in source)
+# File: src/main.cpp line ~2030
+# Changed: if(false) -> if(true)
+
+# Run aumcoind briefly to mine genesis
+./aumcoind -testnet
+
+# Watch for console output:
+# "GENESIS BLOCK MINED!"
+# "genesis hash: [hash]"
+# "genesis merkle root: [merkle]"  
+# "genesis nonce: [nonce]"
+
+# Copy these values and update src/main.cpp:
+# hashGenesisBlock = uint256("0x[hash]")
+# Re-enable assertion with correct merkle root
+# Change genesis mining: if(true) -> if(false)
+
+# Rebuild and push final version
+```
 
 ## Testing Restored OP_CODES
 
 ### Prerequisites
 ```bash
-# Build the client
-cd /mnt/storage/dev/dev/lightcoin-pq/src
+# Build the client (see above for OpenSSL compatibility)
+cd src
 make -f makefile.unix
 
 # Start in test mode
-./litecoind -testnet -daemon
+./aumcoind -testnet -daemon
 ```
 
 ## OP_CODE Test Scripts
