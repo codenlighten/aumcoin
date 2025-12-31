@@ -20,12 +20,15 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /aumcoin
 
-# Copy source code
+# Copy source code (including .git for version info)
 COPY . .
+
+# Create obj directories
+RUN mkdir -p /aumcoin/src/obj /aumcoin/src/obj-test
 
 # Build aumcoind
 WORKDIR /aumcoin/src
-RUN make -f makefile.unix clean && make -f makefile.unix
+RUN make -f makefile.unix
 
 # Expose ports
 EXPOSE 9443 9442

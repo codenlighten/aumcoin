@@ -1,6 +1,4 @@
-# Git files
-.git
-.gitignore
+# Git files (keep .git for version info, exclude others)
 .gitattributes
 
 # Build artifacts

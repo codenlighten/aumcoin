@@ -11,7 +11,7 @@ else
     exit 1
 fi
 
-if [ -e "$(which git)" ]; then
+if [ -e "$(which git)" -a -d ".git" ]; then
     # clean 'dirty' status of touched files that haven't been modified
     git diff >/dev/null 2>/dev/null 
 
@@ -19,7 +19,7 @@ if [ -e "$(which git)" ]; then
     DESC="$(git describe --dirty 2>/dev/null)"
 
     # get a string like "2012-04-10 16:27:19 +0200"
-    TIME="$(git log -n 1 --format="%ci")"
+    TIME="$(git log -n 1 --format="%ci" 2>/dev/null)"
 fi
 
 if [ -n "$DESC" ]; then
@@ -28,8 +28,13 @@ else
     NEWINFO="// No build information available"
 fi
 
+# Ensure the output directory exists
+mkdir -p "$(dirname "$FILE")"
+
 # only update build.h if necessary
 if [ "$INFO" != "$NEWINFO" ]; then
     echo "$NEWINFO" >"$FILE"
-    echo "#define BUILD_DATE \"$TIME\"" >>"$FILE"
+    if [ -n "$TIME" ]; then
+        echo "#define BUILD_DATE \"$TIME\"" >>"$FILE"
+    fi
 fi
