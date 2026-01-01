@@ -61,19 +61,20 @@ LIBS+= \
     # If a stack buffer if overflowed, it writes over the canary number and then on return
     # when that number is checked, it won't be the same and the program will exit with
     # a "Stack smashing detected" error instead of being exploited.
-    HARDENING+=-fstack-protector-all -Wstack-protector
+    # SECURITY: Upgraded from -fstack-protector to -fstack-protector-strong for better coverage
+    HARDENING+=-fstack-protector-strong -Wstack-protector
 
     # Make some important things such as the global offset table read only as soon as
     # the dynamic linker is finished building it. This will prevent overwriting of addresses
     # which would later be jumped to.
-    HARDENING+=-Wl,-z,relro -Wl,-z,now
+    # SECURITY: Also add -Wl,-z,noexecstack to make stack non-executable
+    HARDENING+=-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
 
     # Build position independent code to take advantage of Address Space Layout Randomization
     # offered by some kernels.
+    # SECURITY: Enable PIE by default for ASLR protection
     # see doc/build-unix.txt for more information.
-    ifdef PIE
-        HARDENING+=-fPIE -pie
-    endif
+    HARDENING+=-fPIE -pie
 
     # -D_FORTIFY_SOURCE=2 does some checking for potentially exploitable code patterns in
     # the source such overflowing a statically defined buffer.

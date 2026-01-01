@@ -32,6 +32,10 @@ static const CBigNum bnFalse(0);
 static const CBigNum bnTrue(1);
 static const size_t nMaxNumSize = 4;
 
+// SECURITY: Limit BigNum size for expensive operations (OP_MUL, OP_DIV, OP_MOD)
+// to prevent CPU DOS attacks. 4096 bits = 512 bytes is reasonable.
+static const size_t nMaxBigNumBits = 4096;
+
 
 CBigNum CastToBigNum(const valtype& vch)
 {
@@ -585,11 +589,11 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         return false;
                     valtype& vch1 = stacktop(-2);
                     valtype& vch2 = stacktop(-1);
+                    // SECURITY: Check size BEFORE concatenating to prevent allocation failures
+                    if (vch1.size() + vch2.size() > 10240)
+                        return false;
                     vch1.insert(vch1.end(), vch2.begin(), vch2.end());
                     popstack(stack);
-                    // SATOSHI VISION: Increased concatenation result limit to 10KB
-                    if (stacktop(-1).size() > 10240)
-                        return false;
                 }
                 break;
 
@@ -775,6 +779,14 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     CBigNum bn1 = CastToBigNum(stacktop(-2));
                     CBigNum bn2 = CastToBigNum(stacktop(-1));
                     CBigNum bn;
+                    
+                    // SECURITY: Check operand sizes for expensive operations
+                    // to prevent CPU DOS attacks (OP_MUL, OP_DIV, OP_MOD)
+                    if (opcode == OP_MUL || opcode == OP_DIV || opcode == OP_MOD) {
+                        if (bn1.bitSize() > nMaxBigNumBits || bn2.bitSize() > nMaxBigNumBits)
+                            return false;
+                    }
+                    
                     switch (opcode)
                     {
                     case OP_ADD:
