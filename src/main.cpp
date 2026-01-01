@@ -29,7 +29,7 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x12a765e31ffd4059bada1e25190f6e98c99d9714d334efa41a195a7e7e04bfe2");
+uint256 hashGenesisBlock("0x5828800007714e96f32995e76076b990a1211cf264f2eae74b5ac8be32222950");
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20); // Litecoin: starting difficulty is 1 / 2^12
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
@@ -1986,23 +1986,23 @@ bool LoadBlockIndex(bool fAllowNew)
         block.nVersion = 1;
         block.nTime    = 1735574400; // Dec 30, 2025 00:00:00 GMT
         block.nBits    = 0x1e0ffff0;
-        block.nNonce   = 0; // Will be mined
+        block.nNonce   = 73563; // Genesis nonce
 
         if (fTestNet)
         {
             block.nTime    = 1735574400;
-            block.nNonce   = 0;
+            block.nNonce   = 73563;
         }
 
         //// debug print
         printf("%s\n", block.GetHash().ToString().c_str());
         printf("%s\n", hashGenesisBlock.ToString().c_str());
         printf("%s\n", block.hashMerkleRoot.ToString().c_str());
-        // Merkle root will be calculated based on new timestamp message
-        // assert(block.hashMerkleRoot == uint256("0x97ddfbbae6be97fd6cdf3e7ca13232a3afff2353e29badfab7f73011edd4ced9"));
+        // Genesis block merkle root
+        assert(block.hashMerkleRoot == uint256("0x0e2563c7ae31218c6c8cb876de84fc0ef1e63dae12b2c4d1e1b03f0e7483f006"));
 
         // If genesis block hash does not match, then generate new genesis hash.
-        if (true && block.GetHash() != hashGenesisBlock)
+        if (false && block.GetHash() != hashGenesisBlock)
         {
             printf("Searching for AumCoin genesis block...\n");
             // This will figure out a valid hash and Nonce if you're
