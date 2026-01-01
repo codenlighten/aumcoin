@@ -258,7 +258,43 @@ See [STATUS.md](STATUS.md) for complete technical details.
 
 ---
 
-## 🚨 Disclaimer
+## � Related Projects
+
+AumCoin is part of a **three-layer blockchain ecosystem**:
+
+### **[@smartledger/keys](https://npmjs.com/package/@smartledger/keys)** - Cryptography Foundation
+- **Post-quantum key management SDK** for JavaScript/TypeScript
+- **ML-DSA-44/65/87** implementations (NIST FIPS 204 compliant)
+- **3.6x faster** than ECDSA for total operations
+- Used by AumCoin for Phase 3 (post-quantum integration)
+- Repository: [github.com/codenlighten/lumenkeys](https://github.com/codenlighten/lumenkeys)
+
+### **[Boundless Trust](https://boundlesstrust.org)** - Enterprise Layer
+- **Enterprise-grade blockchain** (mainnet launched Dec 5, 2025)
+- **ML-DSA-44 native** signatures for quantum resistance
+- **39 native transaction types** (no smart contracts, purpose-built)
+- **E2 Identity system** with KYC levels 0-4 for compliance
+- **Products**: MuniBonds, ProofSwarm, Sentinel Quantum, FilmForge
+
+### **When to Use What?**
+
+| Use Case | Recommended Platform |
+|----------|---------------------|
+| **Anonymous P2P payments** | AumCoin (privacy-focused) |
+| **Complex smart contracts** | AumCoin (15 restored OP_CODES) |
+| **High-throughput apps** | AumCoin (128 MB blocks) |
+| **Crypto SDK/library** | @smartledger/keys (post-quantum) |
+| **Enterprise blockchain** | Boundless (compliance-ready) |
+| **SEC-regulated securities** | Boundless (Reg D/S compliant) |
+| **Municipal bonds** | Boundless (MuniBonds product) |
+
+**Interoperability Coming:** Cross-chain atomic swaps (AumCoin ↔ Boundless) are planned for Q3 2026, enabling seamless value transfer between privacy and compliance layers.
+
+See [ECOSYSTEM_COMPARISON.md](ECOSYSTEM_COMPARISON.md) for comprehensive comparison.
+
+---
+
+## �🚨 Disclaimer
 
 **This software is ready for experimental deployment.**
 
