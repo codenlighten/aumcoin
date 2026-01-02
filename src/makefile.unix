@@ -12,9 +12,8 @@ OPENSSL_MAJOR := $(shell echo $(OPENSSL_VERSION) | cut -d. -f1)
 OPENSSL_MINOR := $(shell echo $(OPENSSL_VERSION) | cut -d. -f2)
 
 ifeq ($(OPENSSL_MAJOR),3)
-    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2.2 security active)
-    $(warning ⚠️  WARNING: OpenSSL 3.x requires BigNum refactoring (Phase 2.2))
-    $(warning ⚠️  Build will fail due to BIGNUM opaque type)
+    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2.2 COMPLETE)
+    $(info ✅ BigNum refactoring applied - Build ready)
     # Enable OpenSSL 3.x compatibility mode
     DEFS += -DOPENSSL_API_COMPAT=30000
 else ifeq ($(OPENSSL_MAJOR),1)
