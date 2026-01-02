@@ -161,6 +161,11 @@ CKey::CKey(const CKey& b)
     if (pkey == NULL)
         throw key_error("CKey::CKey(const CKey&) : EC_KEY_dup failed");
     fSet = b.fSet;
+#ifdef ENABLE_MLDSA
+    // Copy ML-DSA keys for hybrid key support
+    vchMLDSAPrivKey = b.vchMLDSAPrivKey;
+    vchMLDSAPubKey = b.vchMLDSAPubKey;
+#endif
 }
 
 CKey& CKey::operator=(const CKey& b)
@@ -168,6 +173,11 @@ CKey& CKey::operator=(const CKey& b)
     if (!EC_KEY_copy(pkey, b.pkey))
         throw key_error("CKey::operator=(const CKey&) : EC_KEY_copy failed");
     fSet = b.fSet;
+#ifdef ENABLE_MLDSA
+    // Copy ML-DSA keys for hybrid key support
+    vchMLDSAPrivKey = b.vchMLDSAPrivKey;
+    vchMLDSAPubKey = b.vchMLDSAPubKey;
+#endif
     return (*this);
 }
 

@@ -22,9 +22,10 @@ BOOST_AUTO_TEST_CASE(create_2of3_multisig_script)
     keyBob.MakeNewHybridKey();
     keyCarol.MakeNewHybridKey();
     
-    BOOST_CHECK(keyAlice.IsValid());
-    BOOST_CHECK(keyBob.IsValid());
-    BOOST_CHECK(keyCarol.IsValid());
+    // Verify hybrid keys were created
+    BOOST_CHECK(keyAlice.HasMLDSAKey());
+    BOOST_CHECK(keyBob.HasMLDSAKey());
+    BOOST_CHECK(keyCarol.HasMLDSAKey());
     
     // Get ML-DSA public keys
     std::vector<std::vector<unsigned char> > vchMLDSAPubKeys;
@@ -137,19 +138,29 @@ BOOST_AUTO_TEST_CASE(various_multisig_combinations)
 {
     printf("\n=== Test 5: Various Multisig Combinations ===\n");
     
-    // Generate 5 keys
+    // Generate 5 keys and verify they have ML-DSA data
     std::vector<CKey> keys;
     for (int i = 0; i < 5; ++i)
     {
         CKey key;
         key.MakeNewHybridKey();
+        
+        // Verify key has ML-DSA component
+        BOOST_CHECK(key.HasMLDSAKey());
+        std::vector<unsigned char> mldsa_pub = key.GetMLDSAPubKey();
+        BOOST_CHECK_EQUAL(mldsa_pub.size(), (size_t)MLDSA::PUBLIC_KEY_BYTES);
+        
         keys.push_back(key);
     }
+    
+    printf("✅ Generated 5 hybrid keys successfully\n");
     
     // Test 1-of-1
     {
         std::vector<std::vector<unsigned char> > pubkeys;
-        pubkeys.push_back(keys[0].GetPubKey().GetMLDSAPubKey());
+        std::vector<unsigned char> pk = keys[0].GetPubKey().GetMLDSAPubKey();
+        BOOST_CHECK_EQUAL(pk.size(), (size_t)MLDSA::PUBLIC_KEY_BYTES);
+        pubkeys.push_back(pk);
         CScript script = CreateMLDSAMultisigScript(1, pubkeys);
         BOOST_CHECK(!script.empty());
         printf("✅ 1-of-1: %zu bytes\n", script.size());
