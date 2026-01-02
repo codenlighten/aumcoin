@@ -6,8 +6,29 @@ USE_UPNP:=0
 
 DEFS=-DUSE_IPV6 -DBOOST_SPIRIT_THREADSAFE
 
-DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
+# OpenSSL 3.x Version Check (Phase 2 Security)
+OPENSSL_VERSION := $(shell pkg-config --modversion openssl 2>/dev/null || echo "not found")
+OPENSSL_MAJOR := $(shell echo $(OPENSSL_VERSION) | cut -d. -f1)
+
+ifeq ($(OPENSSL_MAJOR),3)
+    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2 security active)
+    # Enable OpenSSL 3.x compatibility mode
+    DEFS += -DOPENSSL_API_COMPAT=30000
+else ifneq ($(OPENSSL_VERSION),not found)
+    $(warning ⚠️  OpenSSL $(OPENSSL_VERSION) detected - OpenSSL 3.x recommended for Phase 2)
+    $(warning ⚠️  Continuing with OpenSSL $(OPENSSL_VERSION) for backwards compatibility)
+else
+    $(error ❌ OpenSSL not found. Install: apt-get install libssl-dev pkg-config)
+endif
+
+# Use pkg-config for OpenSSL paths (works with any version/location)
+OPENSSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)
+OPENSSL_LIBS := $(shell pkg-config --libs openssl 2>/dev/null)
+
+DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH))
+DEFS += $(OPENSSL_CFLAGS)
+LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH))
+LIBS += $(OPENSSL_LIBS)
 
 TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
 
