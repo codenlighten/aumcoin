@@ -32,7 +32,9 @@ extern const std::string CLIENT_DATE;
 // network protocol versioning
 //
 
-static const int PROTOCOL_VERSION = 60001;
+// Phase 5.1: Post-Quantum Network Protocol
+// Upgraded to support ML-DSA-65 quantum-resistant signatures
+static const int PROTOCOL_VERSION = 70003;
 
 // earlier versions not supported as of Feb 2012, and are disconnected
 static const int MIN_PROTO_VERSION = 209;

@@ -61,6 +61,7 @@ class CMessageHeader
 enum
 {
     NODE_NETWORK = (1 << 0),
+    NODE_MLDSA = (1 << 3),  // Phase 5.1: ML-DSA quantum-resistant signatures supported
 };
 
 /** A CService with information about it as peer */
