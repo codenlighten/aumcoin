@@ -163,7 +163,7 @@ OBJS= \
 
 # Phase 3: ML-DSA post-quantum crypto objects
 ifeq ($(LIBOQS_AVAILABLE),yes)
-OBJS += obj/mldsa.o
+OBJS += obj/mldsa.o obj/mldsa_cache.o
 endif
 
 

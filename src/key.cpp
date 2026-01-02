@@ -15,6 +15,7 @@
 #include <openssl/obj_mac.h>
 
 #include "key.h"
+#include "mldsa_cache.h"  // Phase 5.1: Signature verification cache
 
 // Generate a private key from just the secret parameter
 int EC_KEY_regenerate_key(EC_KEY *eckey, BIGNUM *priv_key)
@@ -479,9 +480,23 @@ bool CKey::VerifyMLDSA(uint256 hash, const std::vector<unsigned char>& vchSig,
         return false;
     }
     
-    return MLDSA::Verify(vchPubKey,
-                         (const unsigned char*)&hash, sizeof(hash),
-                         vchSig);
+    // Phase 5.1: Check signature cache before expensive verification
+    uint256 cacheKey = CMLDSASignatureCache::ComputeKey(vchPubKey, hash, vchSig);
+    bool cachedResult;
+    if (mldsaSigCache.Get(cacheKey, cachedResult)) {
+        // Cache hit! Return cached result
+        return cachedResult;
+    }
+    
+    // Cache miss - perform expensive ML-DSA verification (~0.5 ms)
+    bool isValid = MLDSA::Verify(vchPubKey,
+                                  (const unsigned char*)&hash, sizeof(hash),
+                                  vchSig);
+    
+    // Cache the result for future use
+    mldsaSigCache.Set(cacheKey, isValid);
+    
+    return isValid;
 }
 
 bool CKey::SignHybrid(uint256 hash, std::vector<unsigned char>& vchSig)
