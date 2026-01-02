@@ -273,7 +273,7 @@ Value addmultisigmldsaaddress(const Array& params, bool fHelp)
     const Array& keys = params[1].get_array();
     string strAccount;
     if (params.size() > 2)
-        strAccount = AccountFromValue(params[2]);
+        strAccount = params[2].get_str();
 
     // Validate nRequired
     if (nRequired < 1)
@@ -329,4 +329,248 @@ Value addmultisigmldsaaddress(const Array& params, bool fHelp)
     return multisigAddress.ToString();
 }
 
+// Phase 4.3: Quantum-Resistant Multisig Transaction Workflow
+Value createmultisigmldsatx(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 5 || params.size() > 6)
+        throw runtime_error(
+            "createmultisigmldsatx <txid> <vout> <redeemscript> <destination> <amount> [fee]\n"
+            "Create an unsigned transaction spending from ML-DSA multisig output\n"
+            "\nArguments:\n"
+            "1. txid          (string, required) Transaction ID containing the multisig output\n"
+            "2. vout          (numeric, required) Output index in the transaction\n"
+            "3. redeemscript  (string, required) Hex-encoded multisig redeem script\n"
+            "4. destination   (string, required) Destination address\n"
+            "5. amount        (numeric, required) Amount to send in satoshis\n"
+            "6. fee           (numeric, optional, default=10000) Transaction fee in satoshis\n"
+            "\nResult:\n"
+            "\"hex\"          (string) Hex-encoded unsigned transaction\n"
+        );
+
+    // Parse parameters
+    uint256 txid;
+    txid.SetHex(params[0].get_str());
+    
+    int nOut = params[1].get_int();
+    if (nOut < 0)
+        throw JSONRPCError(-8, "Invalid output index");
+
+    vector<unsigned char> redeemScriptData = ParseHex(params[2].get_str());
+    if (redeemScriptData.empty())
+        throw JSONRPCError(-8, "Invalid redeem script hex");
+    CScript redeemScript(redeemScriptData.begin(), redeemScriptData.end());
+
+    CBitcoinAddress destAddress(params[3].get_str());
+    if (!destAddress.IsValid())
+        throw JSONRPCError(-5, "Invalid destination address");
+
+    int64 nAmount = params[4].get_int64();
+    int64 nFee = (params.size() > 5) ? params[5].get_int64() : 10000; // Default 0.0001 LTC
+
+    if (nAmount <= 0)
+        throw JSONRPCError(-3, "Invalid amount");
+    if (nFee < 0)
+        throw JSONRPCError(-3, "Invalid fee");
+
+    // Create transaction
+    CTransaction txNew;
+    txNew.nVersion = 1;
+    txNew.nLockTime = 0;
+
+    // Add input (spending from multisig)
+    CTxIn txin(txid, nOut);
+    // Leave scriptSig empty for unsigned transaction
+    // Store redeem script in scriptSig for signing context
+    txin.scriptSig = redeemScript;
+    txNew.vin.push_back(txin);
+
+    // Add output (to destination, minus fee)
+    CScript scriptPubKey;
+    scriptPubKey.SetDestination(destAddress.Get());
+    CTxOut txout(nAmount - nFee, scriptPubKey);
+    txNew.vout.push_back(txout);
+
+    // Serialize transaction to hex
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << txNew;
+    return HexStr(ss.begin(), ss.end());
+}
+
+Value signmldsatx(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 2)
+        throw runtime_error(
+            "signmldsatx <hex> <address>\n"
+            "Add one ML-DSA signature to a partially signed multisig transaction\n"
+            "\nArguments:\n"
+            "1. hex       (string, required) Unsigned or partially signed transaction hex\n"
+            "2. address   (string, required) Address to sign with (must be in wallet)\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"hex\": \"value\",           (string) Updated transaction hex\n"
+            "  \"complete\": true|false      (boolean) True if transaction has enough signatures\n"
+            "  \"signatures\": n              (numeric) Number of signatures collected\n"
+            "}\n"
+        );
+
+    // Deserialize transaction
+    vector<unsigned char> txData = ParseHex(params[0].get_str());
+    CDataStream ssData(txData, SER_NETWORK, PROTOCOL_VERSION);
+    CTransaction tx;
+    try {
+        ssData >> tx;
+    } catch (std::exception &e) {
+        throw JSONRPCError(-22, "Invalid transaction hex");
+    }
+
+    if (tx.vin.empty())
+        throw JSONRPCError(-8, "Transaction has no inputs");
+
+    // Get signing address
+    CBitcoinAddress address(params[1].get_str());
+    if (!address.IsValid())
+        throw JSONRPCError(-5, "Invalid address");
+
+    CKeyID keyID;
+    if (!address.GetKeyID(keyID))
+        throw JSONRPCError(-5, "Address does not refer to a key");
+
+    // Get key from wallet
+    CKey key;
+    if (!pwalletMain->GetKey(keyID, key))
+        throw JSONRPCError(-4, "Private key not available");
+
+    if (!key.HasMLDSAKey())
+        throw JSONRPCError(-5, "Key does not have ML-DSA component");
+
+    // For now, sign the first input (multisig transactions typically have one input)
+    CTxIn& txin = tx.vin[0];
+    
+    // Extract redeem script from scriptSig
+    // In unsigned tx, scriptSig contains just the redeem script
+    // In partially signed tx, scriptSig has format: <sig_count> <sig1> <sig2> ... <redeemScript>
+    
+    CScript redeemScript;
+    vector<vector<unsigned char> > existingSignatures;
+    
+    // Parse existing scriptSig
+    CScript::const_iterator pc = txin.scriptSig.begin();
+    opcodetype opcode;
+    vector<unsigned char> vchData;
+    
+    // Collect all push data from scriptSig
+    vector<vector<unsigned char> > scriptData;
+    while (pc < txin.scriptSig.end())
+    {
+        if (!txin.scriptSig.GetOp(pc, opcode, vchData))
+            break;
+        if (opcode >= 0 && opcode <= OP_PUSHDATA4 && vchData.size() > 0)
+            scriptData.push_back(vchData);
+    }
+    
+    if (scriptData.empty())
+        throw JSONRPCError(-8, "No redeem script found in transaction");
+    
+    // Last element is always the redeem script
+    redeemScript = CScript(scriptData.back().begin(), scriptData.back().end());
+    
+    // Everything before the last element are signatures (skip first element which is sig count)
+    int nSigCount = 0;
+    if (scriptData.size() > 1)
+    {
+        // First element is signature count (if it exists and is small)
+        if (scriptData[0].size() == 1 && scriptData[0][0] <= 15)
+        {
+            nSigCount = scriptData[0][0];
+            // Collect existing signatures
+            for (size_t i = 1; i < scriptData.size() - 1; ++i)
+                existingSignatures.push_back(scriptData[i]);
+        }
+    }
+
+    // Verify this key is part of the multisig
+    CPubKey pubkey = key.GetPubKey();
+    vector<unsigned char> vchMLDSAPubKey = pubkey.GetMLDSAPubKey();
+    
+    // Extract required count and pubkeys from redeem script
+    int nRequired = 0;
+    vector<vector<unsigned char> > vchPubKeys;
+    
+    CScript::const_iterator pcScript = redeemScript.begin();
+    if (!redeemScript.GetOp(pcScript, opcode, vchData))
+        throw JSONRPCError(-8, "Failed to parse redeem script");
+    
+    if (opcode >= OP_1 && opcode <= OP_16)
+        nRequired = CScript::DecodeOP_N(opcode);
+    else
+        throw JSONRPCError(-8, "Invalid redeem script format");
+    
+    // Collect public keys from redeem script
+    while (pcScript < redeemScript.end())
+    {
+        if (!redeemScript.GetOp(pcScript, opcode, vchData))
+            break;
+        if (opcode >= 0 && opcode <= OP_PUSHDATA4 && vchData.size() == 1952)
+            vchPubKeys.push_back(vchData);
+    }
+    
+    // Check if our key is in the multisig
+    bool fKeyFound = false;
+    for (const auto& pk : vchPubKeys)
+    {
+        if (pk == vchMLDSAPubKey)
+        {
+            fKeyFound = true;
+            break;
+        }
+    }
+    
+    if (!fKeyFound)
+        throw JSONRPCError(-5, "Key is not part of this multisig");
+    
+    // Create signing message (transaction hash)
+    uint256 txHash = tx.GetHash();
+    
+    // Sign with ML-DSA
+    vector<unsigned char> vchSig;
+    if (!key.SignMLDSA(txHash, vchSig))
+        throw JSONRPCError(-5, "Signing failed");
+    
+    // Verify signature immediately using static CKey method
+    if (!CKey::VerifyMLDSA(txHash, vchSig, vchMLDSAPubKey))
+        throw JSONRPCError(-5, "Signature verification failed");
+    
+    // Add signature to list
+    existingSignatures.push_back(vchSig);
+    nSigCount++;
+    
+    // Rebuild scriptSig: <sig_count> <sig1> <sig2> ... <sigN> <redeemScript>
+    CScript newScriptSig;
+    newScriptSig << CScript::EncodeOP_N(nSigCount);
+    for (const auto& sig : existingSignatures)
+        newScriptSig << sig;
+    
+    // Push redeem script as data
+    vector<unsigned char> redeemScriptVec(redeemScript.begin(), redeemScript.end());
+    newScriptSig << redeemScriptVec;
+    
+    txin.scriptSig = newScriptSig;
+    
+    // Determine if transaction is complete
+    bool fComplete = (nSigCount >= nRequired);
+    
+    // Serialize updated transaction
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << tx;
+    
+    Object result;
+    result.push_back(Pair("hex", HexStr(ss.begin(), ss.end())));
+    result.push_back(Pair("complete", fComplete));
+    result.push_back(Pair("signatures", nSigCount));
+    result.push_back(Pair("required", nRequired));
+    
+    return result;
+}
+
 #endif // ENABLE_MLDSA
+
