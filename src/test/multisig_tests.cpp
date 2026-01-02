@@ -6,6 +6,11 @@
 #include <boost/foreach.hpp>
 #include <boost/tuple/tuple.hpp>
 
+// Phase 2: OpenSSL 3.x Compatibility
+// Suppress deprecation warnings for EC_KEY API in tests
+#define OPENSSL_API_COMPAT 10100
+#define OPENSSL_SUPPRESS_DEPRECATED
+
 #include <openssl/ec.h>
 #include <openssl/err.h>
 

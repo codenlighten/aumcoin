@@ -3,6 +3,12 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// Phase 2: OpenSSL 3.x Compatibility
+// Suppress deprecation warnings for ECDSA low-level API
+// We'll migrate to EVP_PKEY API in Phase 3 (with ML-DSA support)
+#define OPENSSL_API_COMPAT 10100
+#define OPENSSL_SUPPRESS_DEPRECATED
+
 #include <map>
 
 #include <openssl/ecdsa.h>
