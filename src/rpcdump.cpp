@@ -249,4 +249,84 @@ Value gethybridkeyinfo(const Array& params, bool fHelp)
     return result;
 }
 
+Value addmultisigmldsaaddress(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 2 || params.size() > 3)
+        throw runtime_error(
+            "addmultisigmldsaaddress <nrequired> <'[\"key\",\"key\"]'> [account]\n"
+            "Add a quantum-resistant M-of-N multisignature address to the wallet.\n"
+            "Keys must be AumCoin addresses or hex-encoded public keys with ML-DSA component.\n"
+            "Returns the new multisig P2SH address.\n"
+            "\nArguments:\n"
+            "1. nrequired      (numeric, required) The number of required signatures (M)\n"
+            "2. keys           (string, required) JSON array of AumCoin addresses or hex pubkeys\n"
+            "3. account        (string, optional) Account name to associate with address\n"
+            "\nExample:\n"
+            "  aumcoind addmultisigmldsaaddress 2 '[\"addr1\",\"addr2\",\"addr3\"]' \"multisig-cold-storage\"\n"
+            "\nResult:\n"
+            "  \"address\"  (string) The P2SH address for the multisig script\n");
+
+    if (fHelp)
+        return Value::null;
+
+    int nRequired = params[0].get_int();
+    const Array& keys = params[1].get_array();
+    string strAccount;
+    if (params.size() > 2)
+        strAccount = AccountFromValue(params[2]);
+
+    // Validate nRequired
+    if (nRequired < 1)
+        throw runtime_error("nrequired must be at least 1");
+    if (nRequired > (int)keys.size())
+        throw runtime_error("nrequired cannot be greater than number of keys");
+    if (keys.size() > 15)
+        throw runtime_error("Number of keys cannot exceed 15");
+
+    // Collect ML-DSA public keys from addresses
+    vector<vector<unsigned char> > vchMLDSAPubKeys;
+    vchMLDSAPubKeys.reserve(keys.size());
+
+    for (unsigned int i = 0; i < keys.size(); ++i)
+    {
+        CBitcoinAddress address(keys[i].get_str());
+        if (!address.IsValid())
+            throw JSONRPCError(-5, strprintf("Invalid AumCoin address: %s", keys[i].get_str().c_str()));
+
+        CKeyID keyID;
+        if (!address.GetKeyID(keyID))
+            throw JSONRPCError(-5, "Address does not refer to a key");
+
+        CPubKey pubkey;
+        if (!pwalletMain->GetPubKey(keyID, pubkey))
+            throw JSONRPCError(-5, strprintf("Public key not found in wallet: %s", keys[i].get_str().c_str()));
+
+        if (!pubkey.HasMLDSAKey())
+            throw JSONRPCError(-5, strprintf("Key does not have ML-DSA component: %s", keys[i].get_str().c_str()));
+
+        vchMLDSAPubKeys.push_back(pubkey.GetMLDSAPubKey());
+    }
+
+    // Create the multisig redeem script
+    CScript redeemScript;
+    try {
+        redeemScript = CreateMLDSAMultisigScript(nRequired, vchMLDSAPubKeys);
+    } catch (const std::runtime_error& e) {
+        throw JSONRPCError(-8, strprintf("Failed to create multisig script: %s", e.what()));
+    }
+
+    // Add redeem script to wallet
+    if (!pwalletMain->AddCScript(redeemScript))
+        throw JSONRPCError(-4, "Error adding redeemScript to wallet");
+
+    // Create P2SH address
+    CScriptID scriptID = redeemScript.GetID();
+    CBitcoinAddress multisigAddress(scriptID);
+
+    // Associate with account
+    pwalletMain->SetAddressBookName(scriptID, strAccount);
+
+    return multisigAddress.ToString();
+}
+
 #endif // ENABLE_MLDSA

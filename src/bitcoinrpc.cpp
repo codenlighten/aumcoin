@@ -57,6 +57,7 @@ extern Value getnewmldsaaddress(const Array& params, bool fHelp);
 extern Value signmessagemldsa(const Array& params, bool fHelp);
 extern Value verifymessagemldsa(const Array& params, bool fHelp);
 extern Value gethybridkeyinfo(const Array& params, bool fHelp);
+extern Value addmultisigmldsaaddress(const Array& params, bool fHelp);
 #endif
 
 const Object emptyobj;
@@ -2542,6 +2543,7 @@ static const CRPCCommand vRPCCommands[] =
     { "signmessagemldsa",       &signmessagemldsa,       false },
     { "verifymessagemldsa",     &verifymessagemldsa,     false },
     { "gethybridkeyinfo",       &gethybridkeyinfo,       false },
+    { "addmultisigmldsaaddress", &addmultisigmldsaaddress, true },
 #endif
 };
 
