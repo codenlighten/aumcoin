@@ -1858,3 +1858,79 @@ void CScript::SetMultisig(int nRequired, const std::vector<CKey>& keys)
         *this << key.GetPubKey();
     *this << EncodeOP_N(keys.size()) << OP_CHECKMULTISIG;
 }
+
+#ifdef ENABLE_MLDSA
+// Phase 4.1: Create quantum-resistant M-of-N multisignature script
+// 
+// Script structure:
+//   <nRequired>
+//   FOR EACH pubkey:
+//     <ml-dsa-pubkey> OP_CHECKMLDSASIG OP_IF OP_1 OP_ELSE OP_0 OP_ENDIF
+//   (N-1) × OP_ADD  (sum the verification results)
+//   OP_GREATERTHANOREQUAL  (check if count >= nRequired)
+//
+// Example 2-of-3:
+//   OP_2 
+//   <pubkey1> OP_CHECKMLDSASIG OP_IF OP_1 OP_ELSE OP_0 OP_ENDIF
+//   <pubkey2> OP_CHECKMLDSASIG OP_IF OP_1 OP_ELSE OP_0 OP_ENDIF
+//   <pubkey3> OP_CHECKMLDSASIG OP_IF OP_1 OP_ELSE OP_0 OP_ENDIF
+//   OP_ADD OP_ADD
+//   OP_GREATERTHANOREQUAL
+//
+// Stack execution (Alice and Carol sign, Bob doesn't):
+//   Initial: [<sig1> <sig2> <sig3>]
+//   After pubkey1 check: [<sig2> <sig3> 1]   (Alice signed - valid)
+//   After pubkey2 check: [<sig3> 1 0]         (Bob didn't sign - invalid)
+//   After pubkey3 check: [1 0 1]               (Carol signed - valid)
+//   After OP_ADD OP_ADD: [2]                   (1 + 0 + 1 = 2 valid sigs)
+//   After OP_2: [2 2]
+//   After OP_GREATERTHANOREQUAL: [1]           (2 >= 2 → TRUE → success!)
+//
+CScript CreateMLDSAMultisigScript(int nRequired, const std::vector<std::vector<unsigned char> >& vchMLDSAPubKeys)
+{
+    CScript script;
+    
+    // Validate parameters
+    if (nRequired < 1 || nRequired > (int)vchMLDSAPubKeys.size())
+        throw std::runtime_error("CreateMLDSAMultisigScript: Invalid nRequired parameter");
+    
+    if (vchMLDSAPubKeys.empty() || vchMLDSAPubKeys.size() > 15)
+        throw std::runtime_error("CreateMLDSAMultisigScript: Invalid number of keys (must be 1-15)");
+    
+    // Validate each public key size (ML-DSA-65 = 1952 bytes)
+    for (const auto& pubkey : vchMLDSAPubKeys)
+    {
+        if (pubkey.size() != MLDSA::PUBLIC_KEY_BYTES)
+        {
+            throw std::runtime_error(strprintf(
+                "CreateMLDSAMultisigScript: Invalid public key size (expected %d, got %d)",
+                MLDSA::PUBLIC_KEY_BYTES, pubkey.size()));
+        }
+    }
+    
+    // Push required count (1-15 → OP_1 to OP_15)
+    script << CScript::EncodeOP_N(nRequired);
+    
+    // For each public key: <pubkey> OP_CHECKMLDSASIG OP_IF OP_1 OP_ELSE OP_0 OP_ENDIF
+    for (const auto& pubkey : vchMLDSAPubKeys)
+    {
+        script << pubkey;                  // Push ML-DSA public key
+        script << OP_CHECKMLDSASIG;        // Verify signature (pushes 1 or 0)
+        script << OP_IF;                   // If verification succeeded (1)
+        script << OP_1;                    //   Push 1 (valid signature)
+        script << OP_ELSE;                 // Else (verification failed or empty sig)
+        script << OP_0;                    //   Push 0 (invalid/missing signature)
+        script << OP_ENDIF;                // End conditional
+    }
+    
+    // Sum the verification results (N-1 OP_ADDs for N keys)
+    for (size_t i = 1; i < vchMLDSAPubKeys.size(); ++i)
+        script << OP_ADD;
+    
+    // Check if sum >= nRequired
+    script << OP_GREATERTHANOREQUAL;
+    
+    return script;
+}
+#endif
+

@@ -597,4 +597,9 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
 bool SignSignature(const CKeyStore& keystore, const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType);
 
+#ifdef ENABLE_MLDSA
+// Phase 4.1: Quantum-resistant multisignature support
+CScript CreateMLDSAMultisigScript(int nRequired, const std::vector<std::vector<unsigned char> >& vchMLDSAPubKeys);
+#endif
+
 #endif
