@@ -33,6 +33,19 @@ endif
 OPENSSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)
 OPENSSL_LIBS := $(shell pkg-config --libs openssl 2>/dev/null)
 
+# Phase 3: liboqs (Post-Quantum Cryptography) support
+LIBOQS_AVAILABLE := $(shell pkg-config --exists liboqs && echo "yes" || echo "no")
+ifeq ($(LIBOQS_AVAILABLE),yes)
+    $(info ✅ liboqs detected - ML-DSA post-quantum signatures enabled)
+    LIBOQS_CFLAGS := $(shell pkg-config --cflags liboqs)
+    LIBOQS_LIBS := $(shell pkg-config --libs liboqs)
+    DEFS += -DENABLE_MLDSA $(LIBOQS_CFLAGS)
+    # Note: LIBOQS_LIBS added to LIBS at end of linking command
+else
+    $(info ℹ️  liboqs not found - Building without post-quantum support)
+    $(info    To enable: sudo apt-get install liboqs-dev or build from source)
+endif
+
 DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH))
 DEFS += $(OPENSSL_CFLAGS)
 LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH))
@@ -143,6 +156,11 @@ OBJS= \
     obj/walletdb.o \
     obj/noui.o
 
+# Phase 3: ML-DSA post-quantum crypto objects
+ifeq ($(LIBOQS_AVAILABLE),yes)
+OBJS += obj/mldsa.o
+endif
+
 
 all: aumcoind
 
@@ -165,8 +183,16 @@ obj/%.o: %.cpp
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
+# Phase 3: ML-DSA crypto object (in subdirectory)
+obj/mldsa.o: crypto/mldsa.cpp crypto/mldsa.h
+	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
 aumcoind: $(OBJS:obj/%=obj/%)
-	$(CXX) $(xCXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CXX) $(xCXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBOQS_LIBS)
 
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
 
