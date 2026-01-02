@@ -65,7 +65,8 @@ bool CCrypter::Encrypt(const CKeyingMaterial& vchPlaintext, std::vector<unsigned
     // max ciphertext len for a n bytes of plaintext is
     // n + AES_BLOCK_SIZE - 1 bytes
     int nLen = vchPlaintext.size();
-    int nCLen = nLen + AES_BLOCK_SIZE, nFLen = 0;
+    int nCLen = nLen + 16;  // AES block size is 16 bytes (128 bits)
+    int nFLen = 0;
     vchCiphertext = std::vector<unsigned char> (nCLen);
 
     // OpenSSL 3.x: Use EVP_CIPHER_CTX_new() instead of stack allocation

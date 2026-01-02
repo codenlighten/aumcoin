@@ -1,7 +1,8 @@
 # AumCoin Build Environment
-# Ubuntu 24.04 LTS with OpenSSL 3.3.x for modern security (Phase 2)
+# Ubuntu 20.04 LTS with OpenSSL 1.1.1 (Phase 2.1 - BigNum compatible)
+# NOTE: Will upgrade to 3.x in Phase 2.2 after BigNum refactoring
 
-FROM ubuntu:24.04
+FROM ubuntu:20.04
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
@@ -18,10 +19,11 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify OpenSSL version (should be 3.3.x)
+# Verify OpenSSL version (should be 1.1.1 for BigNum compatibility)
 RUN openssl version && \
-    openssl version | grep -q "OpenSSL 3\." || \
-    (echo "ERROR: OpenSSL 3.x required" && exit 1)
+    (openssl version | grep -q "OpenSSL 1.1.1" && echo "✅ OpenSSL 1.1.1 detected - BigNum compatible") || \
+    (openssl version | grep -q "OpenSSL 3\." && echo "⚠️  OpenSSL 3.x detected - BigNum needs refactoring") || \
+    (echo "ℹ️  OpenSSL $(openssl version) detected")
 
 # Set working directory
 WORKDIR /aumcoin

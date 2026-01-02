@@ -6,17 +6,26 @@ USE_UPNP:=0
 
 DEFS=-DUSE_IPV6 -DBOOST_SPIRIT_THREADSAFE
 
-# OpenSSL 3.x Version Check (Phase 2 Security)
+# OpenSSL Version Detection (Phase 2.1)
 OPENSSL_VERSION := $(shell pkg-config --modversion openssl 2>/dev/null || echo "not found")
 OPENSSL_MAJOR := $(shell echo $(OPENSSL_VERSION) | cut -d. -f1)
+OPENSSL_MINOR := $(shell echo $(OPENSSL_VERSION) | cut -d. -f2)
 
 ifeq ($(OPENSSL_MAJOR),3)
-    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2 security active)
+    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2.2 security active)
+    $(warning ⚠️  WARNING: OpenSSL 3.x requires BigNum refactoring (Phase 2.2))
+    $(warning ⚠️  Build will fail due to BIGNUM opaque type)
     # Enable OpenSSL 3.x compatibility mode
     DEFS += -DOPENSSL_API_COMPAT=30000
+else ifeq ($(OPENSSL_MAJOR),1)
+    $(info ✅ OpenSSL $(OPENSSL_VERSION) detected - Phase 2.1 compatible)
+    ifeq ($(OPENSSL_MINOR),1)
+        $(info ✅ OpenSSL 1.1.x - Modern threading, BigNum compatible)
+    else
+        $(info ℹ️  OpenSSL 1.0.x - Legacy version, will upgrade)
+    endif
 else ifneq ($(OPENSSL_VERSION),not found)
-    $(warning ⚠️  OpenSSL $(OPENSSL_VERSION) detected - OpenSSL 3.x recommended for Phase 2)
-    $(warning ⚠️  Continuing with OpenSSL $(OPENSSL_VERSION) for backwards compatibility)
+    $(warning ⚠️  OpenSSL $(OPENSSL_VERSION) detected - Untested version)
 else
     $(error ❌ OpenSSL not found. Install: apt-get install libssl-dev pkg-config)
 endif

@@ -57,7 +57,7 @@ static bool vfReachable[NET_MAX] = {};
 static bool vfLimited[NET_MAX] = {};
 static CNode* pnodeLocalHost = NULL;
 uint64 nLocalHostNonce = 0;
-array<int, THREAD_MAX> vnThreadsRunning;
+boost::array<int, THREAD_MAX> vnThreadsRunning;  // Explicitly qualify to avoid ambiguity with std::array
 static std::vector<SOCKET> vhListenSocket;
 CAddrMan addrman;
 
