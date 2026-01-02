@@ -1941,10 +1941,15 @@ bool LoadBlockIndex(bool fAllowNew)
 {
     if (fTestNet)
     {
-        pchMessageStart[0] = 0xa2;
-        pchMessageStart[1] = 0xd3;
-        pchMessageStart[2] = 0xe4;
-        pchMessageStart[3] = 0xf5;
+        // Phase 5.2: AumTestNet - Quantum-Safe Test Network
+        // Unique magic bytes for testnet P2P messages
+        pchMessageStart[0] = 0xfc;
+        pchMessageStart[1] = 0xc1;
+        pchMessageStart[2] = 0xb7;
+        pchMessageStart[3] = 0xdc;
+        
+        // Testnet genesis block (quantum-resistant from block 0!)
+        // To be mined with quantum genesis block
         hashGenesisBlock = uint256("0xf5ae71e26c74beacc88382716aced69cddf3dffff24f384e1808905e0188f68f");
     }
 
