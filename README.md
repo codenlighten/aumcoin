@@ -97,6 +97,18 @@ AumCoin combines **Satoshi Nakamoto's original Bitcoin vision** with **quantum-r
 - 🤝 Escrow services (2-of-3 buyer/seller/arbiter)
 - 💼 Corporate wallets (M-of-N approval workflows)
 
+3. **Transaction Workflow** (Phase 4.3) ✅
+   - `createmultisigmldsatx` - Create unsigned transactions
+   - `signmldsatx` - Add ML-DSA signatures incrementally
+   - Signature aggregation with threshold tracking
+   - Transaction immutability (signatures bound to tx hash)
+
+4. **Complete Demo** (Phase 4.4) ✅
+   - End-to-end escrow scenario (Alice/Bob/Carol)
+   - 2-of-3 multisig workflow demonstration
+   - Production-ready command sequences
+   - See [PHASE_4.4_DEMO.md](docs/PHASE_4.4_DEMO.md)
+
 ### Security Guarantee
 
 🔒 **Hybrid signatures provide dual protection:**
@@ -256,11 +268,11 @@ See TESTING.md for 50+ test cases covering all restored OP_CODES.
   - [x] Phase 3.2: OP_CHECKMLDSASIG opcode
   - [x] Phase 3.3: Hybrid key format (9 tests)
   - [x] Phase 3.4: RPC wallet commands
-- [-] **Phase 4**: Quantum-Resistant Multisig 🚧 **IN PROGRESS (Jan 2, 2026)**
+- [x] **Phase 4**: Quantum-Resistant Multisig ✅ **COMPLETE (Jan 2, 2026)**
   - [x] Phase 4.1: Multisig script builder (10 tests, 100% passing)
   - [x] Phase 4.2: `addmultisigmldsaaddress` RPC command
-  - [ ] Phase 4.3: Transaction signing workflow
-  - [ ] Phase 4.4: End-to-end multisig demo
+  - [x] Phase 4.3: Transaction signing workflow (`createmultisigmldsatx`, `signmldsatx` - 10 tests, 100% passing)
+  - [x] Phase 4.4: End-to-end multisig demo (complete escrow scenario documentation)
 - [ ] **Phase 5**: Network Launch & Governance
 - [ ] **Phase 6**: Smart Contract Templates & Tooling
 
