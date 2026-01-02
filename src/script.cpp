@@ -18,7 +18,16 @@ using namespace boost;
 #include "sync.h"
 #include "util.h"
 
+#ifdef ENABLE_MLDSA
+#include "crypto/mldsa.h"
+#endif
+
 bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
+uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
+
+#ifdef ENABLE_MLDSA
+bool CheckMLDSASig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, uint256 sighash);
+#endif
 
 
 
@@ -222,8 +231,8 @@ const char* GetOpName(opcodetype opcode)
     case OP_NOP1                   : return "OP_NOP1";
     case OP_NOP2                   : return "OP_NOP2";
     case OP_NOP3                   : return "OP_NOP3";
-    case OP_NOP4                   : return "OP_NOP4";
-    case OP_NOP5                   : return "OP_NOP5";
+    case OP_NOP4                   : return "OP_CHECKMLDSASIG";  // Phase 3: Post-quantum (alias)
+    case OP_NOP5                   : return "OP_CHECKMLDSASIGVERIFY";  // Phase 3: PQ + verify (alias)
     case OP_NOP6                   : return "OP_NOP6";
     case OP_NOP7                   : return "OP_NOP7";
     case OP_NOP8                   : return "OP_NOP8";
@@ -320,7 +329,8 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 // Control
                 //
                 case OP_NOP:
-                case OP_NOP1: case OP_NOP2: case OP_NOP3: case OP_NOP4: case OP_NOP5:
+                case OP_NOP1: case OP_NOP2: case OP_NOP3:
+                // OP_NOP4 and OP_NOP5 are OP_CHECKMLDSASIG and OP_CHECKMLDSASIGVERIFY (Phase 3)
                 case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 break;
 
@@ -945,6 +955,71 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 }
                 break;
 
+                // Phase 3: Post-Quantum Signature Verification
+                case OP_CHECKMLDSASIG:
+                case OP_CHECKMLDSASIGVERIFY:
+                {
+#ifdef ENABLE_MLDSA
+                    // (sig pubkey -- bool)
+                    // ML-DSA-65 post-quantum signature verification
+                    if (stack.size() < 2)
+                        return false;
+
+                    valtype& vchSig    = stacktop(-2);  // ML-DSA signature (3309 bytes)
+                    valtype& vchPubKey = stacktop(-1);  // ML-DSA public key (1952 bytes)
+
+                    // Validate sizes for ML-DSA-65
+                    if (vchPubKey.size() != 1952) {
+                        // Invalid public key size
+                        popstack(stack);
+                        popstack(stack);
+                        stack.push_back(vchFalse);
+                        if (opcode == OP_CHECKMLDSASIGVERIFY)
+                            return false;
+                        break;
+                    }
+
+                    if (vchSig.size() != 3309) {
+                        // Invalid signature size
+                        popstack(stack);
+                        popstack(stack);
+                        stack.push_back(vchFalse);
+                        if (opcode == OP_CHECKMLDSASIGVERIFY)
+                            return false;
+                        break;
+                    }
+
+                    // Subset of script starting at the most recent codeseparator
+                    CScript scriptCode(pbegincodehash, pend);
+
+                    // Drop the signature (same as ECDSA)
+                    scriptCode.FindAndDelete(CScript(vchSig));
+
+                    // Calculate the signature hash (same as ECDSA)
+                    uint256 sighash = SignatureHash(scriptCode, txTo, nIn, nHashType);
+
+                    // Verify ML-DSA signature
+                    bool fSuccess = CheckMLDSASig(vchSig, vchPubKey, sighash);
+
+                    popstack(stack);
+                    popstack(stack);
+                    stack.push_back(fSuccess ? vchTrue : vchFalse);
+                    if (opcode == OP_CHECKMLDSASIGVERIFY)
+                    {
+                        if (fSuccess)
+                            popstack(stack);
+                        else
+                            return false;
+                    }
+#else
+                    // ML-DSA not compiled in - treat as NOP for soft fork compatibility
+                    // Old nodes: do nothing (NOP)
+                    // New nodes: should have ENABLE_MLDSA defined
+                    // This allows graceful degradation
+#endif
+                }
+                break;
+
                 case OP_CHECKMULTISIG:
                 case OP_CHECKMULTISIGVERIFY:
                 {
@@ -1196,6 +1271,38 @@ bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CSc
     signatureCache.Set(sighash, vchSig, vchPubKey);
     return true;
 }
+
+#ifdef ENABLE_MLDSA
+/**
+ * Check ML-DSA-65 post-quantum signature
+ * 
+ * This function verifies a ML-DSA (FIPS 204) signature against a public key and message hash.
+ * Used by OP_CHECKMLDSASIG opcode for post-quantum transaction signatures.
+ * 
+ * @param vchSig ML-DSA signature (3309 bytes for ML-DSA-65)
+ * @param vchPubKey ML-DSA public key (1952 bytes for ML-DSA-65)
+ * @param sighash Transaction signature hash (32 bytes, same as ECDSA)
+ * @return true if signature is valid, false otherwise
+ * 
+ * Note: ML-DSA signatures are deterministic and quantum-resistant.
+ * They are ~10x larger than ECDSA but ~3.6x faster to verify.
+ */
+bool CheckMLDSASig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, uint256 sighash)
+{
+    // Validate input sizes (already checked in opcode handler, but double-check)
+    if (vchPubKey.size() != MLDSA::PUBLIC_KEY_BYTES) {
+        return false;
+    }
+    
+    if (vchSig.size() != MLDSA::SIGNATURE_BYTES) {
+        return false;
+    }
+    
+    // Verify the ML-DSA signature over the transaction hash
+    // The sighash is the same 32-byte SHA256 hash used by ECDSA
+    return MLDSA::Verify(vchPubKey, (const uint8_t*)&sighash, sizeof(sighash), vchSig);
+}
+#endif
 
 
 

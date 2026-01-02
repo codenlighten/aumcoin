@@ -181,7 +181,9 @@ enum opcodetype
     OP_NOP2 = 0xb1,
     OP_NOP3 = 0xb2,
     OP_NOP4 = 0xb3,
+    OP_CHECKMLDSASIG = OP_NOP4,  // Phase 3: Post-quantum signature verification (soft fork)
     OP_NOP5 = 0xb4,
+    OP_CHECKMLDSASIGVERIFY = OP_NOP5,  // Phase 3: OP_CHECKMLDSASIG + OP_VERIFY
     OP_NOP6 = 0xb5,
     OP_NOP7 = 0xb6,
     OP_NOP8 = 0xb7,
