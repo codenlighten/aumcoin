@@ -342,6 +342,7 @@ public:
         CBigNum bn0 = 0;
         std::string str;
         CBigNum bnCopy = *this;
+        bool fNegative = BN_is_negative(bnCopy.bn);  // Store sign before clearing
         BN_set_negative(bnCopy.bn, false);
         CBigNum dv;
         CBigNum rem;
@@ -355,7 +356,7 @@ public:
             unsigned int c = rem.getulong();
             str += "0123456789abcdef"[c];
         }
-        if (BN_is_negative(bnCopy.bn))
+        if (fNegative)
             str += "-";
         reverse(str.begin(), str.end());
         return str;
