@@ -16,6 +16,10 @@
 
 #include <openssl/ec.h> // for EC_KEY definition
 
+#ifdef ENABLE_MLDSA
+#include "crypto/mldsa.h"
+#endif
+
 // secp160k1
 // const unsigned int PRIVATE_KEY_SIZE = 192;
 // const unsigned int PUBLIC_KEY_SIZE  = 41;
@@ -65,17 +69,43 @@ public:
 class CPubKey {
 private:
     std::vector<unsigned char> vchPubKey;
+#ifdef ENABLE_MLDSA
+    std::vector<unsigned char> vchMLDSAPubKey;  // ML-DSA-65 public key (1952 bytes)
+#endif
     friend class CKey;
 
 public:
     CPubKey() { }
     CPubKey(const std::vector<unsigned char> &vchPubKeyIn) : vchPubKey(vchPubKeyIn) { }
-    friend bool operator==(const CPubKey &a, const CPubKey &b) { return a.vchPubKey == b.vchPubKey; }
-    friend bool operator!=(const CPubKey &a, const CPubKey &b) { return a.vchPubKey != b.vchPubKey; }
-    friend bool operator<(const CPubKey &a, const CPubKey &b) { return a.vchPubKey < b.vchPubKey; }
+    
+#ifdef ENABLE_MLDSA
+    // Hybrid constructor: ECDSA + ML-DSA public keys
+    CPubKey(const std::vector<unsigned char> &vchPubKeyIn, const std::vector<unsigned char> &vchMLDSAPubKeyIn) 
+        : vchPubKey(vchPubKeyIn), vchMLDSAPubKey(vchMLDSAPubKeyIn) { }
+#endif
+    
+    friend bool operator==(const CPubKey &a, const CPubKey &b) { 
+        return a.vchPubKey == b.vchPubKey 
+#ifdef ENABLE_MLDSA
+            && a.vchMLDSAPubKey == b.vchMLDSAPubKey
+#endif
+            ;
+    }
+    friend bool operator!=(const CPubKey &a, const CPubKey &b) { return !(a == b); }
+    friend bool operator<(const CPubKey &a, const CPubKey &b) { 
+        if (a.vchPubKey != b.vchPubKey) return a.vchPubKey < b.vchPubKey;
+#ifdef ENABLE_MLDSA
+        return a.vchMLDSAPubKey < b.vchMLDSAPubKey;
+#else
+        return false;
+#endif
+    }
 
     IMPLEMENT_SERIALIZE(
         READWRITE(vchPubKey);
+#ifdef ENABLE_MLDSA
+        READWRITE(vchMLDSAPubKey);
+#endif
     )
 
     CKeyID GetID() const {
@@ -97,6 +127,26 @@ public:
     std::vector<unsigned char> Raw() const {
         return vchPubKey;
     }
+
+#ifdef ENABLE_MLDSA
+    // Hybrid key methods
+    bool HasMLDSAKey() const {
+        return vchMLDSAPubKey.size() == MLDSA::PUBLIC_KEY_BYTES;
+    }
+    
+    std::vector<unsigned char> GetMLDSAPubKey() const {
+        return vchMLDSAPubKey;
+    }
+    
+    void SetMLDSAPubKey(const std::vector<unsigned char>& vchPubKeyIn) {
+        vchMLDSAPubKey = vchPubKeyIn;
+    }
+    
+    // Check if this is a hybrid key (has both ECDSA and ML-DSA)
+    bool IsHybrid() const {
+        return IsValid() && HasMLDSAKey();
+    }
+#endif
 };
 
 
@@ -113,6 +163,11 @@ protected:
     EC_KEY* pkey;
     bool fSet;
     bool fCompressedPubKey;
+
+#ifdef ENABLE_MLDSA
+    std::vector<unsigned char> vchMLDSAPrivKey;  // ML-DSA-65 private key (4032 bytes)
+    std::vector<unsigned char> vchMLDSAPubKey;   // ML-DSA-65 public key (1952 bytes)
+#endif
 
     void SetCompressedPubKey();
 
@@ -158,6 +213,52 @@ public:
     bool VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig);
 
     bool IsValid();
+
+#ifdef ENABLE_MLDSA
+    // Post-quantum hybrid key methods
+    
+    // Generate both ECDSA and ML-DSA keys (hybrid key pair)
+    void MakeNewHybridKey(bool fCompressed = true);
+    
+    // Set ML-DSA private key
+    bool SetMLDSAPrivKey(const std::vector<unsigned char>& vchPrivKey, 
+                         const std::vector<unsigned char>& vchPubKey);
+    
+    // Get ML-DSA private key
+    std::vector<unsigned char> GetMLDSAPrivKey() const {
+        return vchMLDSAPrivKey;
+    }
+    
+    // Get ML-DSA public key
+    std::vector<unsigned char> GetMLDSAPubKey() const {
+        return vchMLDSAPubKey;
+    }
+    
+    // Sign with ML-DSA (post-quantum signature)
+    bool SignMLDSA(uint256 hash, std::vector<unsigned char>& vchSig);
+    
+    // Verify ML-DSA signature (static method for verification without private key)
+    static bool VerifyMLDSA(uint256 hash, const std::vector<unsigned char>& vchSig,
+                            const std::vector<unsigned char>& vchPubKey);
+    
+    // Sign with both ECDSA and ML-DSA (hybrid signature)
+    // Output format: <ecdsa_sig_len><ecdsa_sig><mldsa_sig>
+    bool SignHybrid(uint256 hash, std::vector<unsigned char>& vchSig);
+    
+    // Verify hybrid signature (must verify both ECDSA and ML-DSA)
+    bool VerifyHybrid(uint256 hash, const std::vector<unsigned char>& vchSig);
+    
+    // Check if this key has ML-DSA keys
+    bool HasMLDSAKey() const {
+        return vchMLDSAPrivKey.size() == MLDSA::PRIVATE_KEY_BYTES &&
+               vchMLDSAPubKey.size() == MLDSA::PUBLIC_KEY_BYTES;
+    }
+    
+    // Check if this is a hybrid key (has both ECDSA and ML-DSA)
+    bool IsHybrid() const {
+        return fSet && HasMLDSAKey();
+    }
+#endif
 };
 
 #endif

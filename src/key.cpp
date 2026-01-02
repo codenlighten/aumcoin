@@ -274,6 +274,14 @@ CPubKey CKey::GetPubKey() const
     unsigned char* pbegin = &vchPubKey[0];
     if (i2o_ECPublicKey(pkey, &pbegin) != nSize)
         throw key_error("CKey::GetPubKey() : i2o_ECPublicKey returned unexpected size");
+    
+#ifdef ENABLE_MLDSA
+    // Include ML-DSA public key if this is a hybrid key
+    if (HasMLDSAKey()) {
+        return CPubKey(vchPubKey, vchMLDSAPubKey);
+    }
+#endif
+    
     return CPubKey(vchPubKey);
 }
 
@@ -403,3 +411,148 @@ bool CKey::IsValid()
     key2.SetSecret(secret, fCompr);
     return GetPubKey() == key2.GetPubKey();
 }
+
+#ifdef ENABLE_MLDSA
+// Phase 3.3: Hybrid Key Implementation (ECDSA + ML-DSA)
+
+void CKey::MakeNewHybridKey(bool fCompressed)
+{
+    // Generate ECDSA key first
+    MakeNewKey(fCompressed);
+    
+    // Generate ML-DSA key pair
+    vchMLDSAPubKey.clear();
+    vchMLDSAPrivKey.clear();
+    
+    if (!MLDSA::GenerateKeypair(vchMLDSAPubKey, vchMLDSAPrivKey)) {
+        throw key_error("CKey::MakeNewHybridKey() : ML-DSA key generation failed");
+    }
+}
+
+bool CKey::SetMLDSAPrivKey(const std::vector<unsigned char>& vchPrivKey,
+                           const std::vector<unsigned char>& vchPubKey)
+{
+    if (vchPrivKey.size() != MLDSA::PRIVATE_KEY_BYTES ||
+        vchPubKey.size() != MLDSA::PUBLIC_KEY_BYTES) {
+        return false;
+    }
+    
+    vchMLDSAPrivKey = vchPrivKey;
+    vchMLDSAPubKey = vchPubKey;
+    return true;
+}
+
+bool CKey::SignMLDSA(uint256 hash, std::vector<unsigned char>& vchSig)
+{
+    if (!HasMLDSAKey()) {
+        return false;
+    }
+    
+    // ML-DSA signs the 32-byte hash directly
+    vchSig.clear();
+    
+    if (!MLDSA::Sign(vchMLDSAPrivKey,
+                     (const unsigned char*)&hash, sizeof(hash),
+                     vchSig)) {
+        vchSig.clear();
+        return false;
+    }
+    
+    return true;
+}
+
+bool CKey::VerifyMLDSA(uint256 hash, const std::vector<unsigned char>& vchSig,
+                       const std::vector<unsigned char>& vchPubKey)
+{
+    if (vchSig.size() != MLDSA::SIGNATURE_BYTES ||
+        vchPubKey.size() != MLDSA::PUBLIC_KEY_BYTES) {
+        return false;
+    }
+    
+    return MLDSA::Verify(vchPubKey,
+                         (const unsigned char*)&hash, sizeof(hash),
+                         vchSig);
+}
+
+bool CKey::SignHybrid(uint256 hash, std::vector<unsigned char>& vchSig)
+{
+    if (!IsHybrid()) {
+        return false;
+    }
+    
+    // Sign with ECDSA first
+    std::vector<unsigned char> vchECDSASig;
+    if (!Sign(hash, vchECDSASig)) {
+        return false;
+    }
+    
+    // Sign with ML-DSA
+    std::vector<unsigned char> vchMLDSASig;
+    if (!SignMLDSA(hash, vchMLDSASig)) {
+        return false;
+    }
+    
+    // Hybrid signature format:
+    // [1 byte: ECDSA sig length] [ECDSA sig] [ML-DSA sig]
+    // ECDSA sig is variable length (typically 70-72 bytes)
+    // ML-DSA sig is fixed 3309 bytes
+    
+    if (vchECDSASig.size() > 255) {
+        return false;  // ECDSA sig too large for length prefix
+    }
+    
+    vchSig.clear();
+    vchSig.reserve(1 + vchECDSASig.size() + vchMLDSASig.size());
+    
+    // Length prefix for ECDSA signature
+    vchSig.push_back(static_cast<unsigned char>(vchECDSASig.size()));
+    
+    // ECDSA signature
+    vchSig.insert(vchSig.end(), vchECDSASig.begin(), vchECDSASig.end());
+    
+    // ML-DSA signature
+    vchSig.insert(vchSig.end(), vchMLDSASig.begin(), vchMLDSASig.end());
+    
+    return true;
+}
+
+bool CKey::VerifyHybrid(uint256 hash, const std::vector<unsigned char>& vchSig)
+{
+    if (!IsHybrid() || vchSig.size() < 1) {
+        return false;
+    }
+    
+    // Parse hybrid signature
+    size_t ecdsa_len = vchSig[0];
+    
+    if (vchSig.size() < 1 + ecdsa_len + MLDSA::SIGNATURE_BYTES) {
+        return false;  // Invalid signature format
+    }
+    
+    // Extract ECDSA signature
+    std::vector<unsigned char> vchECDSASig(vchSig.begin() + 1, 
+                                           vchSig.begin() + 1 + ecdsa_len);
+    
+    // Extract ML-DSA signature
+    std::vector<unsigned char> vchMLDSASig(vchSig.begin() + 1 + ecdsa_len,
+                                           vchSig.end());
+    
+    if (vchMLDSASig.size() != MLDSA::SIGNATURE_BYTES) {
+        return false;
+    }
+    
+    // Verify ECDSA signature
+    if (!Verify(hash, vchECDSASig)) {
+        return false;
+    }
+    
+    // Verify ML-DSA signature
+    if (!VerifyMLDSA(hash, vchMLDSASig, vchMLDSAPubKey)) {
+        return false;
+    }
+    
+    // Both signatures must be valid
+    return true;
+}
+
+#endif // ENABLE_MLDSA

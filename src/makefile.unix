@@ -89,6 +89,11 @@ LIBS+= \
    -l dl \
    -l pthread
 
+# Phase 3: Add liboqs if available
+ifeq ($(LIBOQS_AVAILABLE),yes)
+    LIBS += $(LIBOQS_LIBS)
+endif
+
 
 # Hardening
 # Make some classes of vulnerabilities unexploitable in case one is discovered.
@@ -195,6 +200,8 @@ aumcoind: $(OBJS:obj/%=obj/%)
 	$(CXX) $(xCXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBOQS_LIBS)
 
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
+# Exclude standalone test files with their own main()
+TESTOBJS := $(filter-out obj-test/bignum_debug.o obj-test/bignum_quick_test.o obj-test/ecdsa_openssl_test.o obj-test/wallet_crypto_test.o obj-test/key_quick_test.o obj-test/mldsa_liboqs_test.o obj-test/mldsa_wrapper_test.o,$(TESTOBJS))
 
 obj-test/%.o: test/%.cpp
 	$(CXX) -c $(TESTDEFS) $(xCXXFLAGS) -MMD -o $@ $<
