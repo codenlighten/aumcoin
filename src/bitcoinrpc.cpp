@@ -52,6 +52,13 @@ extern Value getpeerinfo(const Array& params, bool fHelp);
 extern Value dumpprivkey(const Array& params, bool fHelp);
 extern Value importprivkey(const Array& params, bool fHelp);
 
+#ifdef ENABLE_MLDSA
+extern Value getnewmldsaaddress(const Array& params, bool fHelp);
+extern Value signmessagemldsa(const Array& params, bool fHelp);
+extern Value verifymessagemldsa(const Array& params, bool fHelp);
+extern Value gethybridkeyinfo(const Array& params, bool fHelp);
+#endif
+
 const Object emptyobj;
 
 void ThreadRPCServer3(void* parg);
@@ -2530,7 +2537,14 @@ static const CRPCCommand vRPCCommands[] =
     { "dumpprivkey",            &dumpprivkey,            false },
     { "importprivkey",          &importprivkey,          false },
     { "sendrawtx",              &sendrawtx,              false },
+#ifdef ENABLE_MLDSA
+    { "getnewmldsaaddress",     &getnewmldsaaddress,     true },
+    { "signmessagemldsa",       &signmessagemldsa,       false },
+    { "verifymessagemldsa",     &verifymessagemldsa,     false },
+    { "gethybridkeyinfo",       &gethybridkeyinfo,       false },
+#endif
 };
+
 
 CRPCTable::CRPCTable()
 {
