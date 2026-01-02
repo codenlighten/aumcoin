@@ -75,6 +75,28 @@ AumCoin combines **Satoshi Nakamoto's original Bitcoin vision** with **quantum-r
    - `verifymessagemldsa` - Signature verification
    - `gethybridkeyinfo` - Key inspection
 
+### Phase 4 In Progress 🚧
+
+**Quantum-Resistant Multisignature (Jan 2, 2026):**
+
+1. **Multisig Script Builder** (Phase 4.1) ✅
+   - `CreateMLDSAMultisigScript()` - M-of-N quantum multisig
+   - Supports 1-of-1 through 15-of-15 configurations
+   - P2SH compatible (standard 23-byte addresses)
+   - 10 comprehensive tests (100% passing)
+
+2. **Multisig RPC Command** (Phase 4.2) ✅
+   - `addmultisigmldsaaddress` - Create quantum multisig address
+   - Validates all keys have ML-DSA components
+   - Automatic wallet integration
+   - Account management support
+
+**Use Cases Enabled:**
+- 🏦 Exchange cold storage (3-of-5 executives)
+- 🏛️ DAO treasuries (5-of-9 board members)
+- 🤝 Escrow services (2-of-3 buyer/seller/arbiter)
+- 💼 Corporate wallets (M-of-N approval workflows)
+
 ### Security Guarantee
 
 🔒 **Hybrid signatures provide dual protection:**
@@ -234,8 +256,13 @@ See TESTING.md for 50+ test cases covering all restored OP_CODES.
   - [x] Phase 3.2: OP_CHECKMLDSASIG opcode
   - [x] Phase 3.3: Hybrid key format (9 tests)
   - [x] Phase 3.4: RPC wallet commands
-- [ ] **Phase 4**: Network Launch & Governance
-- [ ] **Phase 5**: Smart Contract Templates & Tooling
+- [-] **Phase 4**: Quantum-Resistant Multisig 🚧 **IN PROGRESS (Jan 2, 2026)**
+  - [x] Phase 4.1: Multisig script builder (10 tests, 100% passing)
+  - [x] Phase 4.2: `addmultisigmldsaaddress` RPC command
+  - [ ] Phase 4.3: Transaction signing workflow
+  - [ ] Phase 4.4: End-to-end multisig demo
+- [ ] **Phase 5**: Network Launch & Governance
+- [ ] **Phase 6**: Smart Contract Templates & Tooling
 
 ## 🤔 Why Fork Litecoin Instead of Bitcoin?
 
