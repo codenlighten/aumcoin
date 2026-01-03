@@ -2,8 +2,6 @@
 # AumCoin Testnet Testing Suite
 # Phase 5.2: Quantum-Safe Test Network Validation
 
-set -e
-
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -12,7 +10,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-AUMCOIN_CLI="$SCRIPT_DIR/src/aumcoind -testnet"
+AUMCOIN_CLI="$SCRIPT_DIR/src/aumcoind"
+TESTNET_ARGS="-testnet -datadir=$HOME/.aumcoin"
 
 # Test counters
 TESTS_RUN=0

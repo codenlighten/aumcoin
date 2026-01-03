@@ -31,17 +31,33 @@ if [ ! -f "$AUMCOIN_BIN" ]; then
     echo -e "${GREEN}✅ Build complete!${NC}"
 fi
 
-# Create testnet data directory
-TESTNET_DIR="$HOME/.aumcoin/testnet"
+# Create data directories
+AUMCOIN_DIR="$HOME/.aumcoin"
+TESTNET_DIR="$AUMCOIN_DIR/testnet3"
+mkdir -p "$AUMCOIN_DIR"
 mkdir -p "$TESTNET_DIR"
 
-# Generate configuration if not exists
+# Generate secure random password (used for both configs)
+RPC_PASSWORD=$(openssl rand -hex 32)
+
+# Create main config file (required even for testnet)
+MAIN_CONFIG="$AUMCOIN_DIR/aumcoin.conf"
+if [ ! -f "$MAIN_CONFIG" ]; then
+    echo -e "${BLUE}📝 Creating main configuration...${NC}"
+    cat > "$MAIN_CONFIG" <<EOF
+# AumCoin Main Configuration
+# RPC credentials for testnet access
+rpcuser=aumcoin_testnet
+rpcpassword=$RPC_PASSWORD
+rpcallowip=127.0.0.1
+EOF
+    echo -e "${GREEN}✅ Main config created${NC}"
+fi
+
+# Generate testnet-specific configuration if not exists
 CONFIG_FILE="$TESTNET_DIR/aumcoin.conf"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo -e "${BLUE}📝 Creating testnet configuration...${NC}"
-    
-    # Generate secure random password
-    RPC_PASSWORD=$(openssl rand -hex 32)
     
     cat > "$CONFIG_FILE" <<EOF
 # AumCoin Testnet Configuration
@@ -100,8 +116,8 @@ fi
 echo -e "${BLUE}🚀 Starting AumCoin Testnet...${NC}"
 echo ""
 
-# Launch in daemon mode
-"$AUMCOIN_BIN" -testnet -daemon
+# Launch in daemon mode with testnet data directory
+"$AUMCOIN_BIN" -testnet -datadir="$HOME/.aumcoin" -daemon
 
 # Wait for startup
 echo -n "Waiting for startup"
