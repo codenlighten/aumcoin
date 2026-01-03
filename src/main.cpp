@@ -3623,7 +3623,8 @@ void static BitcoinMiner(CWallet *pwallet)
     {
         if (fShutdown)
             return;
-        while (vNodes.empty() || IsInitialBlockDownload())
+        // Allow testnet mining without peers for isolated testing
+        while (!fTestNet && (vNodes.empty() || IsInitialBlockDownload()))
         {
             Sleep(1000);
             if (fShutdown)
