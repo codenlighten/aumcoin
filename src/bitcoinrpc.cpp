@@ -3363,6 +3363,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "sendmany"               && n > 2) ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "addmultisigaddress"     && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "addmultisigaddress"     && n > 1) ConvertTo<Array>(params[1]);
+    if (strMethod == "addmultisigmldsaaddress" && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "addmultisigmldsaaddress" && n > 1) ConvertTo<Array>(params[1]);
 
     return params;
 }
