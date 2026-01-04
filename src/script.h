@@ -600,6 +600,9 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
 #ifdef ENABLE_MLDSA
 // Phase 4.1: Quantum-resistant multisignature support
 CScript CreateMLDSAMultisigScript(int nRequired, const std::vector<std::vector<unsigned char> >& vchMLDSAPubKeys);
+// Phase 5.3: ML-DSA signature cache metrics
+void GetMLDSACacheMetrics(uint64_t& hits, uint64_t& misses, uint64_t& total,
+                          int64_t& totalTime, size_t& cacheSize);
 #endif
 
 #endif

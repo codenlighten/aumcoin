@@ -618,6 +618,49 @@ Value getmininginfo(const Array& params, bool fHelp)
     return obj;
 }
 
+#ifdef ENABLE_MLDSA
+Value getmldsacachemetrics(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getmldsacachemetrics\n"
+            "Returns ML-DSA signature cache performance metrics.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"cache_size\": n,          (numeric) number of cached signatures\n"
+            "  \"cache_hits\": n,          (numeric) number of cache hits\n"
+            "  \"cache_misses\": n,        (numeric) number of cache misses\n"
+            "  \"hit_rate\": x.xx,         (numeric) cache hit percentage\n"
+            "  \"total_verifications\": n, (numeric) total ML-DSA verifications\n"
+            "  \"total_verify_time\": x.x, (numeric) total verify time in seconds\n"
+            "  \"avg_verify_time\": x.xxx  (numeric) average verify time in milliseconds\n"
+            "}\n"
+        );
+
+    uint64_t nHits = 0, nMisses = 0, nTotal = 0;
+    int64_t nTotalTime = 0;
+    size_t nCacheSize = 0;
+    
+    GetMLDSACacheMetrics(nHits, nMisses, nTotal, nTotalTime, nCacheSize);
+    
+    Object obj;
+    obj.push_back(Pair("cache_size", (uint64_t)nCacheSize));
+    obj.push_back(Pair("cache_hits", nHits));
+    obj.push_back(Pair("cache_misses", nMisses));
+    
+    uint64_t nTotalLookups = nHits + nMisses;
+    double dHitRate = nTotalLookups > 0 ? (100.0 * nHits / nTotalLookups) : 0.0;
+    obj.push_back(Pair("hit_rate", dHitRate));
+    
+    obj.push_back(Pair("total_verifications", nTotal));
+    obj.push_back(Pair("total_verify_time", nTotalTime / 1000000.0));
+    
+    double dAvgVerifyTime = nTotal > 0 ? ((double)nTotalTime / nTotal / 1000.0) : 0.0;
+    obj.push_back(Pair("avg_verify_time", dAvgVerifyTime));
+    
+    return obj;
+}
+#endif
 
 Value getnewaddress(const Array& params, bool fHelp)
 {
@@ -2548,6 +2591,7 @@ static const CRPCCommand vRPCCommands[] =
     { "addmultisigmldsaaddress", &addmultisigmldsaaddress, true },
     { "createmultisigmldsatx",  &createmultisigmldsatx,  false },
     { "signmldsatx",            &signmldsatx,            false },
+    { "getmldsacachemetrics",   &getmldsacachemetrics,   true },
 #endif
 };
 
