@@ -152,6 +152,7 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
             // is just the two items serialized one after the other
             string strType;
             ssKey >> strType;
+            printf("Loading wallet record type: %s\n", strType.c_str());
             if (strType == "name")
             {
                 string strAddress;
@@ -280,7 +281,10 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
             }
             else if (strType == "defaultkey")
             {
-                ssValue >> pwallet->vchDefaultKey;
+                // defaultkey is stored as Raw() bytes, not serialized CPubKey
+                vector<unsigned char> vchPubKey;
+                ssValue >> vchPubKey;
+                pwallet->vchDefaultKey = CPubKey(vchPubKey);
             }
             else if (strType == "pool")
             {

@@ -23,6 +23,13 @@ bool CBasicKeyStore::AddKey(const CKey& key)
     {
         LOCK(cs_KeyStore);
         mapKeys[key.GetPubKey().GetID()] = make_pair(secret, fCompressed);
+#ifdef ENABLE_MLDSA
+        // Also store ML-DSA keys if this is a hybrid key
+        if (key.IsHybrid())
+        {
+            mapMLDSAKeys[key.GetPubKey().GetID()] = make_pair(key.GetMLDSAPrivKey(), key.GetMLDSAPubKey());
+        }
+#endif
     }
     return true;
 }

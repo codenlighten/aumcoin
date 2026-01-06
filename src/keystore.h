@@ -47,6 +47,9 @@ public:
 
 typedef std::map<CKeyID, std::pair<CSecret, bool> > KeyMap;
 typedef std::map<CScriptID, CScript > ScriptMap;
+#ifdef ENABLE_MLDSA
+typedef std::map<CKeyID, std::pair<std::vector<unsigned char>, std::vector<unsigned char>>> MLDSAKeyMap;  // privkey, pubkey
+#endif
 
 /** Basic key store, that keeps keys in an address->secret map */
 class CBasicKeyStore : public CKeyStore
@@ -54,6 +57,9 @@ class CBasicKeyStore : public CKeyStore
 protected:
     KeyMap mapKeys;
     ScriptMap mapScripts;
+#ifdef ENABLE_MLDSA
+    MLDSAKeyMap mapMLDSAKeys;
+#endif
 
 public:
     bool AddKey(const CKey& key);
@@ -88,6 +94,15 @@ public:
             {
                 keyOut.Reset();
                 keyOut.SetSecret((*mi).second.first, (*mi).second.second);
+#ifdef ENABLE_MLDSA
+                // Also load ML-DSA keys if available
+                MLDSAKeyMap::const_iterator mlmi = mapMLDSAKeys.find(address);
+                if (mlmi != mapMLDSAKeys.end())
+                {
+                    keyOut.SetMLDSAPrivKey(mlmi->second.first);
+                    keyOut.SetMLDSAPubKey(mlmi->second.second);
+                }
+#endif
                 return true;
             }
         }
