@@ -220,9 +220,19 @@ public:
     // Generate both ECDSA and ML-DSA keys (hybrid key pair)
     void MakeNewHybridKey(bool fCompressed = true);
     
-    // Set ML-DSA private key
+    // Set ML-DSA private key (with public key)
     bool SetMLDSAPrivKey(const std::vector<unsigned char>& vchPrivKey, 
                          const std::vector<unsigned char>& vchPubKey);
+    
+    // Set ML-DSA private key only (for wallet loading)
+    void SetMLDSAPrivKey(const std::vector<unsigned char>& vchPrivKey) {
+        vchMLDSAPrivKey = vchPrivKey;
+    }
+    
+    // Set ML-DSA public key only (for wallet loading)
+    void SetMLDSAPubKey(const std::vector<unsigned char>& vchPubKey) {
+        vchMLDSAPubKey = vchPubKey;
+    }
     
     // Get ML-DSA private key
     std::vector<unsigned char> GetMLDSAPrivKey() const {

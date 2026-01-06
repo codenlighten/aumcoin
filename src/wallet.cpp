@@ -50,8 +50,21 @@ bool CWallet::AddKey(const CKey& key)
         return false;
     if (!fFileBacked)
         return true;
-    if (!IsCrypted())
-        return CWalletDB(strWalletFile).WriteKey(key.GetPubKey(), key.GetPrivKey());
+    if (!IsCrypted()) {
+        // Write ECDSA key
+        if (!CWalletDB(strWalletFile).WriteKey(key.GetPubKey(), key.GetPrivKey()))
+            return false;
+#ifdef ENABLE_MLDSA
+        // If this is a hybrid key, also write ML-DSA components
+        if (key.IsHybrid()) {
+            if (!CWalletDB(strWalletFile).WriteMLDSAKey(key.GetPubKey(), 
+                                                         key.GetMLDSAPrivKey(), 
+                                                         key.GetMLDSAPubKey()))
+                return false;
+        }
+#endif
+        return true;
+    }
     return true;
 }
 

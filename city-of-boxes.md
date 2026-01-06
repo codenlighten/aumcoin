@@ -302,8 +302,133 @@ node demo-autonomous-creation.js
 **Key Differentiator:** Only City of Boxes enables AI to repair without source code access.
 
 ---
+To help you integrate the Lumen Bridge Embeddings API, I have designed a clean, class-based JavaScript/TypeScript wrapper. This wrapper handles the HTTP requests and simplifies common tasks like similarity matching and batch processing.
 
-**Would you like me to draft the RegistryManager code (the system that listens for these specific AI responses and updates the JSON file)?**
+### LumenEmbeddings Wrapper
 
-**✅ IMPLEMENTED:** RegistryManager is complete with semantic search! See above for implementation status.
+/**
+ * Lumen Bridge Embeddings API Wrapper
+ * Base URL: https://lumenbridge.xyz
+ */
+class LumenEmbeddings {
+  constructor(baseUrl = 'https://lumenbridge.codenlighten.org') {
+    this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+  }
 
+  async _request(endpoint, method = 'POST', body = null) {
+    const options = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+    };
+    if (body) options.body = JSON.stringify(body);
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+    }
+    return data;
+  }
+
+  /**
+   * Generate a single embedding
+   */
+  async generate(text, model = 'text-embedding-3-small') {
+    return this._request('/api/embeddings/generate', 'POST', { text, model });
+  }
+
+  /**
+   * Generate embeddings for multiple texts
+   */
+  async batch(texts, model = 'text-embedding-3-small') {
+    return this._request('/api/embeddings/batch', 'POST', { texts, model });
+  }
+
+  /**
+   * Automatically split and embed long text
+   */
+  async chunked(text, chunkSize = 1000, overlap = 100) {
+    return this._request('/api/embeddings/chunked', 'POST', { text, chunkSize, overlap });
+  }
+
+  /**
+   * Calculate cosine similarity between two vectors
+   */
+  async calculateSimilarity(embedding1, embedding2) {
+    return this._request('/api/embeddings/similarity', 'POST', { embedding1, embedding2 });
+  }
+
+  /**
+   * Find top-K similar embeddings from a collection
+   */
+  async findSimilar(queryEmbedding, collection, topK = 5) {
+    return this._request('/api/embeddings/find-similar', 'POST', {
+      queryEmbedding,
+      embeddings: collection, // Collection should be [{embedding: [], metadata: {}}]
+      topK
+    });
+  }
+
+  /**
+   * List available models
+   */
+  async getModels() {
+    return this._request('/api/embeddings/models', 'GET');
+  }
+}
+
+
+---
+
+### Implementation Example: Semantic Search
+
+Here is how you would use the wrapper to perform a semantic search across a small dataset.
+
+const lumen = new LumenEmbeddings();
+
+async function runSearch() {
+  try {
+    // 1. Prepare your data
+    const documents = [
+      "How to build a web app with React",
+      "Delicious Italian pasta recipes",
+      "Understanding quantum entanglement",
+      "The basics of JavaScript programming"
+    ];
+
+    // 2. Batch embed your documents
+    console.log("Embedding documents...");
+    const batchResponse = await lumen.batch(documents);
+    
+    // Format the collection for the find-similar endpoint
+    const collection = batchResponse.embeddings.map((item, i) => ({
+      embedding: item.embedding,
+      metadata: { text: documents[i], id: i }
+    }));
+
+    // 3. Generate embedding for a search query
+    const query = "coding for the web";
+    const queryRes = await lumen.generate(query);
+
+    // 4. Find most similar matches
+    const results = await lumen.findSimilar(queryRes.embedding, collection, 2);
+
+    console.log(`Results for: "${query}"`);
+    results.results.forEach(res => {
+      console.log(`- [Score: ${res.similarity.toFixed(4)}] ${res.metadata.text}`);
+    });
+
+  } catch (err) {
+    console.error("Search failed:", err.message);
+  }
+}
+
+runSearch();
+
+
+### Key Features of this Wrapper:
+
+* **Normalized Base URL**: Prevents common "double slash" path errors.
+* Error Handling: Automatically parses the API's custom error structure and throws readable JavaScript Errors.
+* Simplified Interface: Abstracted methods for batch and findSimilar reduce the boilerplate needed for search logic.

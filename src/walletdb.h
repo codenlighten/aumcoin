@@ -86,6 +86,42 @@ public:
         return true;
     }
 
+#ifdef ENABLE_MLDSA
+    // Read/Write ML-DSA keys for hybrid quantum-resistant addresses
+    bool ReadMLDSAKey(const CPubKey& vchPubKey, std::vector<unsigned char>& vchMLDSAPrivKey, std::vector<unsigned char>& vchMLDSAPubKey)
+    {
+        vchMLDSAPrivKey.clear();
+        vchMLDSAPubKey.clear();
+        // Read ML-DSA private key
+        if (!Read(std::make_pair(std::string("mlkey_priv"), vchPubKey.Raw()), vchMLDSAPrivKey))
+            return false;
+        // Read ML-DSA public key
+        if (!Read(std::make_pair(std::string("mlkey_pub"), vchPubKey.Raw()), vchMLDSAPubKey))
+            return false;
+        return true;
+    }
+
+    bool WriteMLDSAKey(const CPubKey& vchPubKey, const std::vector<unsigned char>& vchMLDSAPrivKey, const std::vector<unsigned char>& vchMLDSAPubKey)
+    {
+        nWalletDBUpdated++;
+        // Write ML-DSA private key
+        if (!Write(std::make_pair(std::string("mlkey_priv"), vchPubKey.Raw()), vchMLDSAPrivKey, false))
+            return false;
+        // Write ML-DSA public key
+        if (!Write(std::make_pair(std::string("mlkey_pub"), vchPubKey.Raw()), vchMLDSAPubKey, false))
+            return false;
+        return true;
+    }
+
+    bool EraseMLDSAKey(const CPubKey& vchPubKey)
+    {
+        nWalletDBUpdated++;
+        Erase(std::make_pair(std::string("mlkey_priv"), vchPubKey.Raw()));
+        Erase(std::make_pair(std::string("mlkey_pub"), vchPubKey.Raw()));
+        return true;
+    }
+#endif
+
     bool WriteMasterKey(unsigned int nID, const CMasterKey& kMasterKey)
     {
         nWalletDBUpdated++;

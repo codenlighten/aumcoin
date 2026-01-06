@@ -109,6 +109,10 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
     int nFileVersion = 0;
     vector<uint256> vWalletUpgrade;
     bool fIsEncrypted = false;
+#ifdef ENABLE_MLDSA
+    // Temporary map to store ML-DSA keys during loading
+    std::map<CKeyID, std::pair<std::vector<unsigned char>, std::vector<unsigned char>>> mapMLDSAKeys;
+#endif
 
     //// todo: shouldn't we catch exceptions and try to recover and continue?
     {
@@ -302,9 +306,69 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
                     return DB_CORRUPT;
                 }
             }
+#ifdef ENABLE_MLDSA
+            else if (strType == "mlkey_priv")
+            {
+                // Load ML-DSA private key
+                vector<unsigned char> vchPubKey;
+                ssKey >> vchPubKey;
+                vector<unsigned char> vchMLDSAPrivKey;
+                ssValue >> vchMLDSAPrivKey;
+                
+                // Store in temporary map
+                CPubKey pubkey(vchPubKey);
+                CKeyID keyID = pubkey.GetID();
+                mapMLDSAKeys[keyID].first = vchMLDSAPrivKey;
+            }
+            else if (strType == "mlkey_pub")
+            {
+                // Load ML-DSA public key
+                vector<unsigned char> vchPubKey;
+                ssKey >> vchPubKey;
+                vector<unsigned char> vchMLDSAPubKey;
+                ssValue >> vchMLDSAPubKey;
+                
+                // Store in temporary map
+                CPubKey pubkey(vchPubKey);
+                CKeyID keyID = pubkey.GetID();
+                mapMLDSAKeys[keyID].second = vchMLDSAPubKey;
+            }
+#endif
         }
         pcursor->close();
     }
+
+#ifdef ENABLE_MLDSA
+    // Now apply ML-DSA keys to the loaded ECDSA keys
+    typedef std::pair<std::vector<unsigned char>, std::vector<unsigned char>> MLDSAKeyPair;
+    typedef std::map<CKeyID, MLDSAKeyPair>::value_type MLDSAKeyMapItem;
+    BOOST_FOREACH(const MLDSAKeyMapItem& item, mapMLDSAKeys)
+    {
+        CKeyID keyID = item.first;
+        const std::vector<unsigned char>& vchMLDSAPrivKey = item.second.first;
+        const std::vector<unsigned char>& vchMLDSAPubKey = item.second.second;
+        
+        CKey key;
+        if (pwallet->GetKey(keyID, key))
+        {
+            // Add ML-DSA components to the existing key
+            key.SetMLDSAPrivKey(vchMLDSAPrivKey);
+            key.SetMLDSAPubKey(vchMLDSAPubKey);
+            
+            // Reload the key with ML-DSA components
+            if (!pwallet->LoadKey(key))
+            {
+                printf("Error applying ML-DSA key to wallet\n");
+                return DB_CORRUPT;
+            }
+            printf("Applied ML-DSA key to address: %s\n", CBitcoinAddress(keyID).ToString().c_str());
+        }
+        else
+        {
+            printf("Warning: ML-DSA key found but corresponding ECDSA key not in wallet\n");
+        }
+    }
+#endif
 
     BOOST_FOREACH(uint256 hash, vWalletUpgrade)
         WriteTx(hash, pwallet->mapWallet[hash]);
