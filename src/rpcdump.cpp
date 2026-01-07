@@ -329,6 +329,66 @@ Value addmultisigmldsaaddress(const Array& params, bool fHelp)
     return multisigAddress.ToString();
 }
 
+Value getredeemscript(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getredeemscript <p2sh_address>\n"
+            "Returns the redeem script for a P2SH multisig address in the wallet.\n"
+            "\nArguments:\n"
+            "1. p2sh_address   (string, required) The P2SH multisig address\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"address\" : \"address\",        (string) The P2SH address\n"
+            "  \"redeemScript\" : \"hex\",       (string) The hex-encoded redeem script\n"
+            "  \"type\" : \"type\"               (string) Script type (e.g. \"multisig\")\n"
+            "}\n"
+            "\nExample:\n"
+            "  aumcoind getredeemscript \"2MtxuRKifrWcqRZAFA5MpJuHem7Ji827hy9\"\n");
+
+    if (fHelp)
+        return Value::null;
+
+    string strAddress = params[0].get_str();
+    CBitcoinAddress address(strAddress);
+    
+    if (!address.IsValid())
+        throw JSONRPCError(-5, "Invalid AumCoin address");
+    
+    if (!address.IsScript())
+        throw JSONRPCError(-5, "Address is not a P2SH address");
+
+    CTxDestination dest = address.Get();
+    const CScriptID* scriptID = boost::get<CScriptID>(&dest);
+    if (!scriptID)
+        throw JSONRPCError(-5, "Could not extract script ID from address");
+
+    CScript redeemScript;
+    if (!pwalletMain->GetCScript(*scriptID, redeemScript))
+        throw JSONRPCError(-4, "Redeem script not found in wallet");
+
+    Object result;
+    result.push_back(Pair("address", strAddress));
+    result.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+    
+    // Determine script type
+    txnouttype type;
+    vector<vector<unsigned char> > vSolutions;
+    if (Solver(redeemScript, type, vSolutions))
+    {
+        if (type == TX_MULTISIG)
+            result.push_back(Pair("type", "multisig"));
+        else
+            result.push_back(Pair("type", GetTxnOutputType(type)));
+    }
+    else
+    {
+        result.push_back(Pair("type", "unknown"));
+    }
+
+    return result;
+}
+
 // Phase 4.3: Quantum-Resistant Multisig Transaction Workflow
 Value createmultisigmldsatx(const Array& params, bool fHelp)
 {
