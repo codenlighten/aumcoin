@@ -326,7 +326,11 @@ Value addmultisigmldsaaddress(const Array& params, bool fHelp)
     // Associate with account
     pwalletMain->SetAddressBookName(scriptID, strAccount);
 
-    return multisigAddress.ToString();
+    // Return both address and redeem script hex
+    Object result;
+    result.push_back(Pair("address", multisigAddress.ToString()));
+    result.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+    return result;
 }
 
 Value getredeemscript(const Array& params, bool fHelp)
@@ -507,44 +511,90 @@ Value signmldsatx(const Array& params, bool fHelp)
     CTxIn& txin = tx.vin[0];
     
     // Extract redeem script from scriptSig
-    // In unsigned tx, scriptSig contains just the redeem script
+    // In unsigned tx, scriptSig IS the redeem script directly
     // In partially signed tx, scriptSig has format: <sig_count> <sig1> <sig2> ... <redeemScript>
     
     CScript redeemScript;
     vector<vector<unsigned char> > existingSignatures;
+    int nSigCount = 0;
     
-    // Parse existing scriptSig
+    // Parse existing scriptSig to detect if it's unsigned or partially signed
     CScript::const_iterator pc = txin.scriptSig.begin();
     opcodetype opcode;
     vector<unsigned char> vchData;
     
-    // Collect all push data from scriptSig
-    vector<vector<unsigned char> > scriptData;
-    while (pc < txin.scriptSig.end())
+    // Distinguish unsigned vs partially signed:
+    // NEW FORMAT (corrected):
+    // - Unsigned: <pubkey1 (1952)> OP_CHECKMLDSASIG ... OP_N OP_GREATERTHANOREQUAL (redeem script)
+    // - Partially signed: <sig1_or_empty> <sig2_or_empty> ... <sigN_or_empty> <redeemScript>
+    //
+    // Check: if first element is 1952 bytes (ML-DSA pubkey), it's unsigned.
+    // Otherwise, it's partially signed (first element is signature 3309 bytes or empty 0 bytes).
+    
+    bool isUnsigned = false;
+    
+    if (!txin.scriptSig.GetOp(pc, opcode, vchData))
+        throw JSONRPCError(-8, "Failed to parse scriptSig");
+    
+    // Check if first element is 1952 bytes (ML-DSA pubkey = unsigned redeem script)
+    if (vchData.size() == 1952)
     {
-        if (!txin.scriptSig.GetOp(pc, opcode, vchData))
-            break;
-        if (opcode >= 0 && opcode <= OP_PUSHDATA4 && vchData.size() > 0)
-            scriptData.push_back(vchData);
+        isUnsigned = true;
     }
     
-    if (scriptData.empty())
-        throw JSONRPCError(-8, "No redeem script found in transaction");
-    
-    // Last element is always the redeem script
-    redeemScript = CScript(scriptData.back().begin(), scriptData.back().end());
-    
-    // Everything before the last element are signatures (skip first element which is sig count)
-    int nSigCount = 0;
-    if (scriptData.size() > 1)
+    if (isUnsigned)
     {
-        // First element is signature count (if it exists and is small)
-        if (scriptData[0].size() == 1 && scriptData[0][0] <= 15)
+        // Unsigned transaction - scriptSig is the redeem script
+        redeemScript = txin.scriptSig;
+        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
+        if (f) {
+            fprintf(f, "DEBUG-UNSIGNED: Detected unsigned TX, redeemScript size=%zu, first byte=0x%02x\n", 
+                    redeemScript.size(), redeemScript.size() > 0 ? redeemScript[0] : 0);
+            fclose(f);
+        }
+    }
+    else
+    {
+        // Partially signed transaction
+        // Format: <sig1_or_empty> <sig2_or_empty> ... <sigN_or_empty> <redeemScript>
+        // Last (largest) element is the redeem script, rest are signatures
+        
+        pc = txin.scriptSig.begin();
+        vector<vector<unsigned char>> scriptData;
+        
+        while (pc < txin.scriptSig.end())
         {
-            nSigCount = scriptData[0][0];
-            // Collect existing signatures
-            for (size_t i = 1; i < scriptData.size() - 1; ++i)
-                existingSignatures.push_back(scriptData[i]);
+            if (!txin.scriptSig.GetOp(pc, opcode, vchData))
+                break;
+            if (opcode >= 0 && opcode <= OP_PUSHDATA4)
+                scriptData.push_back(vchData);  // Include empty vectors
+        }
+        
+        if (scriptData.empty())
+            throw JSONRPCError(-8, "No data found in scriptSig");
+        
+        // Last element is redeem script (largest element)
+        redeemScript = CScript(scriptData.back().begin(), scriptData.back().end());
+        
+        // Everything before last element are signatures (may include empty vectors)
+        // IMPORTANT: scriptSig has signatures in REVERSE order, so we reverse them back
+        // to match the key index order for processing
+        for (int i = (int)scriptData.size() - 2; i >= 0; --i)
+            existingSignatures.push_back(scriptData[i]);
+        
+        // Count non-empty signatures
+        nSigCount = 0;
+        for (const auto& sig : existingSignatures)
+        {
+            if (sig.size() > 0)
+                nSigCount++;
+        }
+        
+        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
+        if (f) {
+            fprintf(f, "DEBUG-PARTIAL: Found %zu signature slots, %d non-empty (reversed from scriptSig)\n", 
+                    existingSignatures.size(), nSigCount);
+            fclose(f);
         }
     }
 
@@ -553,62 +603,120 @@ Value signmldsatx(const Array& params, bool fHelp)
     vector<unsigned char> vchMLDSAPubKey = pubkey.GetMLDSAPubKey();
     
     // Extract required count and pubkeys from redeem script
+    // NEW FORMAT: pubkeys come FIRST, then OP_ADDs, then nRequired, then OP_GREATERTHANOREQUAL
     int nRequired = 0;
     vector<vector<unsigned char> > vchPubKeys;
     
+    FILE* fScript = fopen("/tmp/mldsa_debug.txt", "a");
+    if (fScript) {
+        fprintf(fScript, "DEBUG: redeemScript size = %zu\n", redeemScript.size());
+        if (redeemScript.size() > 0)
+            fprintf(fScript, "DEBUG: redeemScript first byte = 0x%02x\n", redeemScript[0]);
+        fclose(fScript);
+    }
+    
     CScript::const_iterator pcScript = redeemScript.begin();
-    if (!redeemScript.GetOp(pcScript, opcode, vchData))
-        throw JSONRPCError(-8, "Failed to parse redeem script");
     
-    if (opcode >= OP_1 && opcode <= OP_16)
-        nRequired = CScript::DecodeOP_N(opcode);
-    else
-        throw JSONRPCError(-8, "Invalid redeem script format");
-    
-    // Collect public keys from redeem script
+    // Collect public keys from beginning (all 1952-byte pushes)
     while (pcScript < redeemScript.end())
     {
         if (!redeemScript.GetOp(pcScript, opcode, vchData))
             break;
         if (opcode >= 0 && opcode <= OP_PUSHDATA4 && vchData.size() == 1952)
             vchPubKeys.push_back(vchData);
+        // Also look for nRequired (OP_1 to OP_16) near the end
+        else if (opcode >= OP_1 && opcode <= OP_16)
+            nRequired = CScript::DecodeOP_N(opcode);
     }
     
+    fScript = fopen("/tmp/mldsa_debug.txt", "a");
+    if (fScript) {
+        fprintf(fScript, "DEBUG: Found %zu pubkeys, nRequired = %d\n", vchPubKeys.size(), nRequired);
+        fclose(fScript);
+    }
+    
+    if (nRequired == 0)
+        throw JSONRPCError(-8, "Failed to find nRequired in redeem script");
+    
+    if (vchPubKeys.empty())
+        throw JSONRPCError(-8, "Failed to find any public keys in redeem script");
+    
     // Check if our key is in the multisig
-    bool fKeyFound = false;
-    for (const auto& pk : vchPubKeys)
+    // Find which key index we're signing with
+    int nKeyIndex = -1;
+    for (size_t i = 0; i < vchPubKeys.size(); i++)
     {
-        if (pk == vchMLDSAPubKey)
+        if (vchPubKeys[i] == vchMLDSAPubKey)
         {
-            fKeyFound = true;
+            nKeyIndex = i;
             break;
         }
     }
     
-    if (!fKeyFound)
+    if (nKeyIndex < 0)
         throw JSONRPCError(-5, "Key is not part of this multisig");
     
-    // Create signing message (transaction hash)
-    uint256 txHash = tx.GetHash();
-    
-    // Sign with ML-DSA
-    vector<unsigned char> vchSig;
-    if (!key.SignMLDSA(txHash, vchSig))
-        throw JSONRPCError(-5, "Signing failed");
-    
-    // Verify signature immediately using static CKey method
-    if (!CKey::VerifyMLDSA(txHash, vchSig, vchMLDSAPubKey))
+        // Create signing message using Bitcoin's SignatureHash (excludes scriptSig from hash)
+        // This ensures all signatures sign the same transaction hash
+        // IMPORTANT: We must replicate what OP_CHECKMLDSASIG does during verification:
+        // 1. It creates scriptCode from pbegincodehash to pend (the full redeem script in our case)
+        // 2. It calls scriptCode.FindAndDelete(CScript(vchSig)) to remove the signature
+        // 3. It calls SignatureHash which ALSO does FindAndDelete(OP_CODESEPARATOR)
+        // So we need to remove OP_CODESEPARATOR from redeemScript BEFORE calling SignatureHash
+        CScript scriptCodeForSigning = redeemScript;
+        scriptCodeForSigning.FindAndDelete(CScript(OP_CODESEPARATOR));
+        
+        uint256 sighash = SignatureHash(scriptCodeForSigning, tx, 0, SIGHASH_ALL);
+        
+        // DEBUG: Log the hash being signed
+        FILE* fsign = fopen("/tmp/mldsa_debug.txt", "a");
+        if (fsign) {
+            fprintf(fsign, "DEBUG-SIGN: address=%s, redeemScript size=%zu, scriptCode size=%zu, sighash=%s\n", 
+                    address.ToString().c_str(),
+                    redeemScript.size(),
+                    scriptCodeForSigning.size(),
+                    sighash.GetHex().c_str());
+            fclose(fsign);
+        }
+
+        // Sign with ML-DSA
+        vector<unsigned char> vchSig;
+        if (!key.SignMLDSA(sighash, vchSig))
+            throw JSONRPCError(-5, "Signing failed");    // Verify signature immediately using static CKey method
+    if (!CKey::VerifyMLDSA(sighash, vchSig, vchMLDSAPubKey))
         throw JSONRPCError(-5, "Signature verification failed");
     
-    // Add signature to list
-    existingSignatures.push_back(vchSig);
-    nSigCount++;
+    // Build signature array with exactly N elements (one per key)
+    // Initialize with empty vectors for all keys
+    size_t N = vchPubKeys.size();
+    vector<vector<unsigned char>> allSignatures(N);
     
-    // Rebuild scriptSig: <sig_count> <sig1> <sig2> ... <sigN> <redeemScript>
+    // Copy existing signatures from partially signed TX
+    for (size_t i = 0; i < existingSignatures.size() && i < N; i++)
+    {
+        if (existingSignatures[i].size() > 0)
+            allSignatures[i] = existingSignatures[i];
+    }
+    
+    // Add our new signature at the correct index
+    allSignatures[nKeyIndex] = vchSig;
+    
+    // Count non-empty signatures
+    nSigCount = 0;
+    for (const auto& sig : allSignatures)
+    {
+        if (sig.size() > 0)
+            nSigCount++;
+    }
+    
+    // Rebuild scriptSig for P2SH: <sigN> ... <sig2> <sig1> <redeemScript>
+    // IMPORTANT: Signatures must be in REVERSE order because:
+    // - Redeem script processes pubkeys LEFT-TO-RIGHT (pubkey1, pubkey2, pubkey3...)
+    // - Stack is LIFO, so first pubkey will consume TOP of stack
+    // - Therefore signatures must be pushed in reverse order
     CScript newScriptSig;
-    newScriptSig << CScript::EncodeOP_N(nSigCount);
-    for (const auto& sig : existingSignatures)
-        newScriptSig << sig;
+    for (auto it = allSignatures.rbegin(); it != allSignatures.rend(); ++it)
+        newScriptSig << *it;
     
     // Push redeem script as data
     vector<unsigned char> redeemScriptVec(redeemScript.begin(), redeemScript.end());

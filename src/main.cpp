@@ -1212,11 +1212,12 @@ bool CTransaction::ConnectInputs(MapPrevTx inputs,
             if (!(fBlock && (nBestHeight < Checkpoints::GetTotalBlocksEstimate())))
             {
                 // Verify signature
-                if (!VerifySignature(txPrev, *this, i, fStrictPayToScriptHash, 0))
+                // IMPORTANT: Use SIGHASH_ALL not 0, so OP_CHECKMLDSASIG gets correct nHashType
+                if (!VerifySignature(txPrev, *this, i, fStrictPayToScriptHash, SIGHASH_ALL))
                 {
                     // only during transition phase for P2SH: do not invoke anti-DoS code for
                     // potentially old clients relaying bad P2SH transactions
-                    if (fStrictPayToScriptHash && VerifySignature(txPrev, *this, i, false, 0))
+                    if (fStrictPayToScriptHash && VerifySignature(txPrev, *this, i, false, SIGHASH_ALL))
                         return error("ConnectInputs() : %s P2SH VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
 
                     return DoS(100,error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str()));
@@ -1270,7 +1271,8 @@ bool CTransaction::ClientConnectInputs()
                 return false;
 
             // Verify signature
-            if (!VerifySignature(txPrev, *this, i, true, 0))
+            // IMPORTANT: Use SIGHASH_ALL not 0, so OP_CHECKMLDSASIG gets correct nHashType
+            if (!VerifySignature(txPrev, *this, i, true, SIGHASH_ALL))
                 return error("ConnectInputs() : VerifySignature failed");
 
             ///// this is redundant with the mempool.mapNextTx stuff,
