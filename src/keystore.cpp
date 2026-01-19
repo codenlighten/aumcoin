@@ -27,7 +27,12 @@ bool CBasicKeyStore::AddKey(const CKey& key)
         // Also store ML-DSA keys if this is a hybrid key
         if (key.IsHybrid())
         {
+            printf("DEBUG AddKey: Storing hybrid key, ML-DSA priv=%zu bytes, pub=%zu bytes\n",
+                   key.GetMLDSAPrivKey().size(), key.GetMLDSAPubKey().size());
             mapMLDSAKeys[key.GetPubKey().GetID()] = make_pair(key.GetMLDSAPrivKey(), key.GetMLDSAPubKey());
+        } else {
+            printf("DEBUG AddKey: Key is NOT hybrid, ML-DSA priv=%zu bytes, pub=%zu bytes\n",
+                   key.GetMLDSAPrivKey().size(), key.GetMLDSAPubKey().size());
         }
 #endif
     }

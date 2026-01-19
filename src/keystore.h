@@ -99,8 +99,14 @@ public:
                 MLDSAKeyMap::const_iterator mlmi = mapMLDSAKeys.find(address);
                 if (mlmi != mapMLDSAKeys.end())
                 {
+                    printf("DEBUG GetKey: Found ML-DSA keys, priv size=%zu, pub size=%zu\n",
+                           mlmi->second.first.size(), mlmi->second.second.size());
                     keyOut.SetMLDSAPrivKey(mlmi->second.first);
                     keyOut.SetMLDSAPubKey(mlmi->second.second);
+                    printf("DEBUG GetKey: After Set, key IsHybrid=%d\n", keyOut.IsHybrid());
+                } else {
+                    printf("DEBUG GetKey: NO ML-DSA keys in mapMLDSAKeys for this CKeyID (mapMLDSAKeys size=%zu)\n",
+                           mapMLDSAKeys.size());
                 }
 #endif
                 return true;

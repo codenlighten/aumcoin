@@ -934,10 +934,16 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 {
                     // (sig pubkey -- bool)
                     if (stack.size() < 2)
+                    {
+                        printf("ERROR OP_CHECKSIG: Stack size < 2 (size=%zu)\n", stack.size());
                         return false;
+                    }
 
                     valtype& vchSig    = stacktop(-2);
                     valtype& vchPubKey = stacktop(-1);
+
+                    printf("DEBUG OP_CHECKSIG: vchSig size=%zu, vchPubKey size=%zu\n", 
+                           vchSig.size(), vchPubKey.size());
 
                     ////// debug print
                     //PrintHex(vchSig.begin(), vchSig.end(), "sig: %s\n");
@@ -949,7 +955,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // Drop the signature, since there's no way for a signature to sign itself
                     scriptCode.FindAndDelete(CScript(vchSig));
 
+                    printf("DEBUG OP_CHECKSIG: Calling CheckSig...\n");
                     bool fSuccess = CheckSig(vchSig, vchPubKey, scriptCode, txTo, nIn, nHashType);
+                    printf("DEBUG OP_CHECKSIG: CheckSig returned %d\n", fSuccess);
 
                     popstack(stack);
                     popstack(stack);
@@ -1367,12 +1375,31 @@ bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CSc
     if (signatureCache.Get(sighash, vchSig, vchPubKey))
         return true;
 
+    // The public key on the stack is now ALWAYS just the ECDSA component (for P2PKH compatibility)
+    // For hybrid signatures, the ML-DSA public key is embedded in the signature itself
+    CPubKey pubkey(vchPubKey);
+    
     CKey key;
-    if (!key.SetPubKey(vchPubKey))
+    if (!key.SetPubKey(pubkey))
         return false;
 
-    if (!key.Verify(sighash, vchSig))
-        return false;
+#ifdef ENABLE_MLDSA
+    // Check if this is a hybrid signature (has embedded ML-DSA public key)
+    // Hybrid signature format: [1 byte: ECDSA len] [ECDSA sig] [ML-DSA pub 1952] [ML-DSA sig 3309]
+    // Minimum size: 1 + ~72 + 1952 + 3309 = ~5334 bytes
+    if (vchSig.size() > 5000) {
+        printf("✅ QUANTUM-SAFE: Verifying hybrid signature (ECDSA + ML-DSA with embedded pubkey)\n");
+        // VerifyHybrid will extract ML-DSA pubkey from signature and verify both components
+        if (!key.VerifyHybrid(sighash, vchSig))
+            return false;
+    } else
+#endif
+    {
+        // Fall back to ECDSA-only verification for legacy signatures
+        printf("⚠️  LEGACY: Verifying ECDSA-only signature (NOT quantum-safe)\n");
+        if (!key.Verify(sighash, vchSig))
+            return false;
+    }
 
     signatureCache.Set(sighash, vchSig, vchPubKey);
     return true;
@@ -1676,8 +1703,30 @@ bool Sign1(const CKeyID& address, const CKeyStore& keystore, uint256 hash, int n
         return false;
 
     vector<unsigned char> vchSig;
-    if (!key.Sign(hash, vchSig))
-        return false;
+    
+#ifdef ENABLE_MLDSA
+    // Use hybrid signing for quantum-safe keys
+    if (key.IsHybrid()) {
+        printf("✅ QUANTUM-SAFE: Using hybrid signature (ECDSA + ML-DSA)\n");
+        printf("   ML-DSA priv key size: %zu bytes\n", key.GetMLDSAPrivKey().size());
+        printf("   ML-DSA pub key size: %zu bytes\n", key.GetMLDSAPubKey().size());
+        if (!key.SignHybrid(hash, vchSig))
+            return false;
+    } else
+#endif
+    {
+        // Fall back to ECDSA-only signing for legacy keys
+        printf("⚠️  LEGACY: Using ECDSA-only signature (NOT quantum-safe)\n");
+#ifdef ENABLE_MLDSA
+        printf("   Key has ML-DSA priv? %s (size: %zu)\n", 
+               key.HasMLDSAKey() ? "YES" : "NO", key.GetMLDSAPrivKey().size());
+        printf("   Key has ML-DSA pub? %s (size: %zu)\n", 
+               !key.GetMLDSAPubKey().empty() ? "YES" : "NO", key.GetMLDSAPubKey().size());
+#endif
+        if (!key.Sign(hash, vchSig))
+            return false;
+    }
+    
     vchSig.push_back((unsigned char)nHashType);
     scriptSigRet << vchSig;
 
@@ -1732,7 +1781,12 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         {
             CPubKey vch;
             keystore.GetPubKey(keyID, vch);
+            printf("DEBUG Solver TX_PUBKEYHASH: About to add pubkey to scriptSig\n");
+            printf("DEBUG Solver: vch.HasMLDSAKey()=%d, vch.GetMLDSAPubKey() size=%zu\n", 
+                   vch.HasMLDSAKey(), vch.GetMLDSAPubKey().size());
+            printf("DEBUG Solver: scriptSigRet size before adding pubkey=%zu\n", scriptSigRet.size());
             scriptSigRet << vch;
+            printf("DEBUG Solver: scriptSigRet size after adding pubkey=%zu\n", scriptSigRet.size());
         }
         return true;
     case TX_SCRIPTHASH:
@@ -1913,18 +1967,43 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, vecto
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn,
                   bool fValidatePayToScriptHash, int nHashType)
 {
+    printf("DEBUG VerifyScript: Starting verification\n");
+    printf("DEBUG VerifyScript: scriptSig size=%zu, scriptPubKey size=%zu\n", 
+           scriptSig.size(), scriptPubKey.size());
+    
     vector<vector<unsigned char> > stack, stackCopy;
+    printf("DEBUG VerifyScript: Evaluating scriptSig\n");
     if (!EvalScript(stack, scriptSig, txTo, nIn, nHashType))
+    {
+        printf("ERROR VerifyScript: EvalScript failed for scriptSig!\n");
         return false;
+    }
+    printf("DEBUG VerifyScript: scriptSig evaluation succeeded, stack size=%zu\n", stack.size());
+    
     if (fValidatePayToScriptHash)
         stackCopy = stack;
+    
+    printf("DEBUG VerifyScript: Evaluating scriptPubKey\n");
     if (!EvalScript(stack, scriptPubKey, txTo, nIn, nHashType))
+    {
+        printf("ERROR VerifyScript: EvalScript failed for scriptPubKey!\n");
         return false;
+    }
+    printf("DEBUG VerifyScript: scriptPubKey evaluation succeeded, stack size=%zu\n", stack.size());
+    
     if (stack.empty())
+    {
+        printf("ERROR VerifyScript: Stack is empty after evaluation!\n");
         return false;
+    }
 
     if (CastToBool(stack.back()) == false)
+    {
+        printf("ERROR VerifyScript: Top of stack cast to false!\n");
         return false;
+    }
+    
+    printf("DEBUG VerifyScript: All checks passed!\n");
 
     // Additional validation for spend-to-script-hash transactions:
     if (fValidatePayToScriptHash && scriptPubKey.IsPayToScriptHash())
@@ -2045,8 +2124,13 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTrans
 
     // Test solution
     // IMPORTANT: Use SIGHASH_ALL (1) not 0, so OP_CHECKMLDSASIG gets correct nHashType
+    printf("DEBUG SignSignature: Testing solution with VerifyScript\n");
     if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, true, SIGHASH_ALL))
+    {
+        printf("ERROR SignSignature: VerifyScript failed!\n");
         return false;
+    }
+    printf("DEBUG SignSignature: VerifyScript succeeded!\n");
 
     return true;
 }
