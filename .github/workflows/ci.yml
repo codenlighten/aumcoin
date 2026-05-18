@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs on the same ref when a new push lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint / regression guards. Fast (~30s), catches the most common mistakes
+  # without spinning up a build.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: lint / regression guards
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No fopen("/tmp/...") in src/ (M1.1 regression guard)
+        run: |
+          if git grep -nE 'fopen\("/tmp' -- src/; then
+            echo "::error::Forbidden fopen(\"/tmp/...\") pattern found in src/"
+            echo "These were stripped in commit 5824826 (Phase 1.1)."
+            echo "Symlink/TOCTOU hazard + open-syscall-per-opcode IBD killer."
+            exit 1
+          fi
+          echo "✓ no fopen(\"/tmp/...\") references in src/"
+
+      - name: No printf("DEBUG ...") in consensus-path files
+        run: |
+          files="src/script.cpp src/script.h src/key.cpp src/keystore.cpp src/keystore.h src/wallet.cpp src/walletdb.cpp src/rpcdump.cpp"
+          if git grep -nE 'printf\("DEBUG' -- $files; then
+            echo "::error::Debug printf in consensus-path file"
+            exit 1
+          fi
+          echo "✓ no printf(\"DEBUG ...\") in consensus paths"
+
+      - name: No tracked binaries / backup files
+        run: |
+          bad=$(git ls-files | xargs -I{} stat -c '%s {}' 2>/dev/null \
+            | awk '$1 > 1048576 {print $2}' \
+            | grep -vE '^(project-knowledge/|share/pixmaps/|src/qt/locale/|contrib/macdeploy/)' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Tracked file(s) >1 MB outside the whitelist:"
+            echo "$bad"
+            exit 1
+          fi
+          if git ls-files | grep -qE '\.(backup|bak|orig|rej)$'; then
+            echo "::error::*.backup / *.orig / *.rej files should not be tracked"
+            git ls-files | grep -E '\.(backup|bak|orig|rej)$'
+            exit 1
+          fi
+          echo "✓ no oversized tracked files; no backup files tracked"
+
+  # ---------------------------------------------------------------------------
+  # OpenSSL 3 build (matches our development environment).
+  # Builds aumcoind and runs the Boost.Test suite.
+  # ---------------------------------------------------------------------------
+  build-test-openssl3:
+    name: build + test (OpenSSL 3, Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libboost-all-dev \
+            libboost-test-dev \
+            libdb++-dev \
+            libminiupnpc-dev
+
+      - name: Verify OpenSSL version is 3.x
+        run: |
+          openssl version
+          pkg-config --modversion openssl
+          test "$(pkg-config --modversion openssl | cut -d. -f1)" = "3"
+
+      - name: Build aumcoind
+        working-directory: src
+        run: nice -n 19 make -f makefile.unix -j$(nproc) aumcoind
+
+      - name: Smoke test (binary runs, prints help)
+        working-directory: src
+        run: ./aumcoind -? | head -5
+
+      - name: Build test_aumcoin
+        working-directory: src
+        run: nice -n 19 make -f makefile.unix -j$(nproc) test_aumcoin
+
+      - name: Run Boost.Test suite
+        working-directory: src
+        run: ./test_aumcoin --report_level=short
+
+  # ---------------------------------------------------------------------------
+  # OpenSSL 1.1 build via the project's Dockerfile (Ubuntu 20.04 base).
+  # This is the version pinned for reproducible release builds. Mainnet
+  # binaries should come out byte-identical from both this and the OpenSSL 3
+  # path once M1.2's bit-equivalence test is in place.
+  # ---------------------------------------------------------------------------
+  build-test-openssl11:
+    name: build + test (OpenSSL 1.1, Docker)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image (Ubuntu 20.04 + OpenSSL 1.1.1)
+        run: docker build -t aumcoin-build:openssl11 -f Dockerfile .
+
+      - name: Verify OpenSSL version inside container
+        run: |
+          docker run --rm aumcoin-build:openssl11 openssl version | tee /tmp/ssl.txt
+          grep -q "OpenSSL 1.1" /tmp/ssl.txt
+
+      - name: Build aumcoind inside container
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work/src aumcoin-build:openssl11 \
+            bash -c "nice -n 19 make -f makefile.unix -j\$(nproc) aumcoind"
+
+      - name: Build + run tests inside container
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work/src aumcoin-build:openssl11 \
+            bash -c "nice -n 19 make -f makefile.unix -j\$(nproc) test_aumcoin && ./test_aumcoin --report_level=short"
+
+  # ---------------------------------------------------------------------------
+  # Sanitizer build (ASan + UBSan). Advisory for the first sprint
+  # (continue-on-error) so that PRs aren't blocked while we surface and fix
+  # findings. Flip to required after a 2-week burn-in.
+  # ---------------------------------------------------------------------------
+  sanitize:
+    name: sanitize (ASan + UBSan) — advisory
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libboost-all-dev \
+            libboost-test-dev \
+            libdb++-dev \
+            libminiupnpc-dev
+
+      - name: make sanitize (builds test_aumcoin under ASan + UBSan)
+        working-directory: src
+        run: nice -n 19 make -f makefile.unix sanitize
+
+      - name: Run sanitized Boost.Test suite
+        working-directory: src
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ./test_aumcoin --report_level=short
