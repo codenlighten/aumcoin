@@ -441,7 +441,11 @@ uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL
 inline uint160 Hash160(const std::vector<unsigned char>& vch)
 {
     uint256 hash1;
-    SHA256(&vch[0], vch.size(), (unsigned char*)&hash1);
+    // Use .data() instead of &vch[0] — operator[] on an empty vector binds
+    // a reference to non-existent storage (UB caught by UBSan). SHA256 over
+    // an empty input is a defined operation that produces a specific known
+    // hash; it must not crash on empty CScript / empty pubkey blobs.
+    SHA256(vch.data(), vch.size(), (unsigned char*)&hash1);
     uint160 hash2;
     RIPEMD160((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
     return hash2;
