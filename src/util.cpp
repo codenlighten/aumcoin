@@ -707,7 +707,10 @@ vector<unsigned char> DecodeBase64(const char* p, bool* pfInvalid)
 string DecodeBase64(const string& str)
 {
     vector<unsigned char> vchRet = DecodeBase64(str.c_str());
-    return string((const char*)&vchRet[0], vchRet.size());
+    // Use .data() rather than &vchRet[0] — the latter is undefined behavior
+    // when the vector is empty (operator[](0) binds a reference to non-existent
+    // storage), caught by UBSan as a "reference binding to null pointer".
+    return string(reinterpret_cast<const char*>(vchRet.data()), vchRet.size());
 }
 
 string EncodeBase32(const unsigned char* pch, size_t len)
@@ -894,7 +897,8 @@ vector<unsigned char> DecodeBase32(const char* p, bool* pfInvalid)
 string DecodeBase32(const string& str)
 {
     vector<unsigned char> vchRet = DecodeBase32(str.c_str());
-    return string((const char*)&vchRet[0], vchRet.size());
+    // Same fix as DecodeBase64 above — avoid &vchRet[0] on empty vector.
+    return string(reinterpret_cast<const char*>(vchRet.data()), vchRet.size());
 }
 
 
