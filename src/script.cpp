@@ -1782,8 +1782,10 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
             CPubKey vch;
             keystore.GetPubKey(keyID, vch);
             printf("DEBUG Solver TX_PUBKEYHASH: About to add pubkey to scriptSig\n");
-            printf("DEBUG Solver: vch.HasMLDSAKey()=%d, vch.GetMLDSAPubKey() size=%zu\n", 
+#ifdef ENABLE_MLDSA
+            printf("DEBUG Solver: vch.HasMLDSAKey()=%d, vch.GetMLDSAPubKey() size=%zu\n",
                    vch.HasMLDSAKey(), vch.GetMLDSAPubKey().size());
+#endif
             printf("DEBUG Solver: scriptSigRet size before adding pubkey=%zu\n", scriptSigRet.size());
             scriptSigRet << vch;
             printf("DEBUG Solver: scriptSigRet size after adding pubkey=%zu\n", scriptSigRet.size());

@@ -4,6 +4,8 @@
 
 Last Updated: December 30, 2025
 
+> ⚠️ **2026-05-18: superseded.** This document is preserved as historical context. The forward-looking plan is now `/home/greg/.claude/plans/inherited-jingling-hummingbird.md` (Phases 0–5: reality check → trustworthy foundation → PQ-enforcement → public testnet → mainnet prep → ecosystem). The phase numbering below does **not** match the new plan — read SECURITY_ANALYSIS.md and STATUS.md reconciliations first for what's actually done vs. what was claimed.
+
 ---
 
 ## 🎯 Vision
