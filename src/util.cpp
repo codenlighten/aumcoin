@@ -84,24 +84,19 @@ public:
     CInit()
     {
 #if OPENSSL_VERSION_MAJOR >= 3
-        // OpenSSL 3.x: Initialize crypto library (thread-safe by default)
+        // OpenSSL 3.x: explicit init (also thread-safe by default).
         OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL);
+#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+        // OpenSSL 1.1.x: thread-safe by default. CRYPTO_set_locking_callback
+        // is a deprecated no-op; nothing to do here. The prior fallback that
+        // installed a locking callback under #else had two latent bugs (a
+        // missing block around ENTER/LEAVE_CRITICAL_SECTION macros that
+        // broke the compile, and a static ppmutexOpenSSL=NULL inside the
+        // lambda that shadowed the outer pointer and caused a null deref)
+        // — removed wholesale in M1.3 cleanup since OpenSSL >= 1.1 is now
+        // the minimum supported version (see Dockerfile and src/bignum.h).
 #else
-        // OpenSSL 1.x: Manual threading setup (deprecated path)
-        // This code path is kept for backwards compatibility during migration
-        static CCriticalSection** ppmutexOpenSSL = NULL;
-        ppmutexOpenSSL = (CCriticalSection**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(CCriticalSection*));
-        for (int i = 0; i < CRYPTO_num_locks(); i++)
-            ppmutexOpenSSL[i] = new CCriticalSection();
-        
-        auto locking_callback = [](int mode, int i, const char* file, int line) {
-            static CCriticalSection** ppmutexOpenSSL = NULL;
-            if (mode & CRYPTO_LOCK)
-                ENTER_CRITICAL_SECTION(*ppmutexOpenSSL[i]);
-            else
-                LEAVE_CRITICAL_SECTION(*ppmutexOpenSSL[i]);
-        };
-        CRYPTO_set_locking_callback(locking_callback);
+#       error "OpenSSL >= 1.1.0 is required."
 #endif
 
 #ifdef WIN32
