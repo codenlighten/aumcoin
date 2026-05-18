@@ -340,16 +340,9 @@ public:
 
     CScript& operator<<(const CPubKey& key)
     {
-#ifdef ENABLE_MLDSA
-        // For hybrid keys in P2PKH transactions:
-        // Only push the ECDSA component so that OP_HASH160 matches the address
-        // The ML-DSA public key is embedded in the signature itself
-        // This allows existing P2PKH scripts to work with hybrid keys
-        if (key.HasMLDSAKey()) {
-            printf("DEBUG operator<<(CPubKey): Pushing ECDSA-only for hybrid key (ML-DSA in signature)\n");
-        }
-#endif
-        // Always push only the ECDSA component for P2PKH compatibility
+        // For hybrid keys in P2PKH transactions, key.Raw() returns only the
+        // ECDSA component so that OP_HASH160 still matches the legacy address.
+        // The ML-DSA pubkey is carried in the signature blob (see CKey::SignHybrid).
         std::vector<unsigned char> vchKey = key.Raw();
         return (*this) << vchKey;
     }

@@ -267,15 +267,6 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
     //     return false;
     int nOpCount = 0;
 
-    FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-    if (f) {
-        fprintf(f, "DEBUG-EVALSCRIPT: Starting evaluation, script size=%zu, initial stack size=%zu\n", 
-                script.size(), stack.size());
-        for (size_t i = 0; i < stack.size() && i < 5; i++) {
-            fprintf(f, "DEBUG-EVALSCRIPT:   Stack[%zu]: size=%zu bytes\n", i, stack[i].size());
-        }
-        fclose(f);
-    }
 
     try
     {
@@ -935,15 +926,12 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // (sig pubkey -- bool)
                     if (stack.size() < 2)
                     {
-                        printf("ERROR OP_CHECKSIG: Stack size < 2 (size=%zu)\n", stack.size());
                         return false;
                     }
 
                     valtype& vchSig    = stacktop(-2);
                     valtype& vchPubKey = stacktop(-1);
 
-                    printf("DEBUG OP_CHECKSIG: vchSig size=%zu, vchPubKey size=%zu\n", 
-                           vchSig.size(), vchPubKey.size());
 
                     ////// debug print
                     //PrintHex(vchSig.begin(), vchSig.end(), "sig: %s\n");
@@ -955,9 +943,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // Drop the signature, since there's no way for a signature to sign itself
                     scriptCode.FindAndDelete(CScript(vchSig));
 
-                    printf("DEBUG OP_CHECKSIG: Calling CheckSig...\n");
                     bool fSuccess = CheckSig(vchSig, vchPubKey, scriptCode, txTo, nIn, nHashType);
-                    printf("DEBUG OP_CHECKSIG: CheckSig returned %d\n", fSuccess);
 
                     popstack(stack);
                     popstack(stack);
@@ -977,43 +963,21 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 case OP_CHECKMLDSASIGVERIFY:
                 {
 #ifdef ENABLE_MLDSA
-                    FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                    if (f) {
-                        fprintf(f, "DEBUG-CHECKMLDSASIG: Opcode=0x%02x, stack size=%zu\n", opcode, stack.size());
-                        fclose(f);
-                    }
                     
                     // (sig pubkey -- bool)
                     // ML-DSA-65 post-quantum signature verification
                     if (stack.size() < 2)
                     {
-                        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                        if (f) {
-                            fprintf(f, "DEBUG-CHECKMLDSASIG: FAIL - stack too small (size=%zu)\n", stack.size());
-                            fclose(f);
-                        }
                         return false;
                     }
 
                     valtype& vchSig    = stacktop(-2);  // ML-DSA signature (3309 bytes)
                     valtype& vchPubKey = stacktop(-1);  // ML-DSA public key (1952 bytes)
 
-                    FILE* f2 = fopen("/tmp/mldsa_debug.txt", "a");
-                    if (f2) {
-                        fprintf(f2, "DEBUG-CHECKMLDSASIG: sig size=%zu, pubkey size=%zu\n", 
-                                vchSig.size(), vchPubKey.size());
-                        fclose(f2);
-                    }
 
                     // Validate sizes for ML-DSA-65
                     if (vchPubKey.size() != 1952) {
                         // Invalid public key size
-                        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                        if (f) {
-                            fprintf(f, "DEBUG-CHECKMLDSASIG: FAIL - invalid pubkey size=%zu (expected 1952)\n", 
-                                    vchPubKey.size());
-                            fclose(f);
-                        }
                         popstack(stack);
                         popstack(stack);
                         stack.push_back(vchFalse);
@@ -1024,12 +988,6 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
 
                     if (vchSig.size() != 3309 && vchSig.size() != 0) {
                         // Invalid signature size (allow empty for unsigned)
-                        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                        if (f) {
-                            fprintf(f, "DEBUG-CHECKMLDSASIG: FAIL - invalid sig size=%zu (expected 3309 or 0)\n", 
-                                    vchSig.size());
-                            fclose(f);
-                        }
                         popstack(stack);
                         popstack(stack);
                         stack.push_back(vchFalse);
@@ -1048,31 +1006,14 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     uint256 sighash = SignatureHash(scriptCode, txTo, nIn, nHashType);
                     
                     // DEBUG: Log verification hash
-                    FILE* fverify = fopen("/tmp/mldsa_debug.txt", "a");
-                    if (fverify) {
-                        fprintf(fverify, "DEBUG-VERIFY: scriptCode size=%zu, sighash=%s\n",
-                                scriptCode.size(), sighash.GetHex().c_str());
-                        fclose(fverify);
-                    }
 
                     // Verify ML-DSA signature
                     bool fSuccess = false;
                     if (vchSig.size() == 0) {
                         // Empty signature = no signature provided
                         fSuccess = false;
-                        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                        if (f) {
-                            fprintf(f, "DEBUG-CHECKMLDSASIG: Empty signature -> FALSE\n");
-                            fclose(f);
-                        }
                     } else {
                         fSuccess = CheckMLDSASig(vchSig, vchPubKey, sighash);
-                        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-                        if (f) {
-                            fprintf(f, "DEBUG-CHECKMLDSASIG: Signature verification -> %s\n", 
-                                    fSuccess ? "TRUE" : "FALSE");
-                            fclose(f);
-                        }
                     }
 
                     popstack(stack);
@@ -1178,36 +1119,15 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
     }
     catch (...)
     {
-        FILE* fdbg = fopen("/tmp/mldsa_debug.txt", "a");
-        if (fdbg) {
-            fprintf(fdbg, "DEBUG-EVALSCRIPT: EXCEPTION caught during evaluation\n");
-            fclose(fdbg);
-        }
         return false;
     }
 
 
     if (!vfExec.empty())
     {
-        FILE* fdbg = fopen("/tmp/mldsa_debug.txt", "a");
-        if (fdbg) {
-            fprintf(fdbg, "DEBUG-EVALSCRIPT: FAIL - vfExec not empty\n");
-            fclose(fdbg);
-        }
         return false;
     }
 
-    FILE* fdbg = fopen("/tmp/mldsa_debug.txt", "a");
-    if (fdbg) {
-        fprintf(fdbg, "DEBUG-EVALSCRIPT: SUCCESS - script evaluation complete, final stack size=%zu\n", 
-                stack.size());
-        if (!stack.empty()) {
-            bool finalResult = CastToBool(stack.back());
-            fprintf(fdbg, "DEBUG-EVALSCRIPT: Final stack top evaluates to: %s\n", 
-                    finalResult ? "TRUE" : "FALSE");
-        }
-        fclose(fdbg);
-    }
 
     return true;
 }
@@ -1281,19 +1201,6 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
     ss << txTmp << nHashType;
     
     // DEBUG: Log what we're hashing
-    FILE* fhash = fopen("/tmp/mldsa_debug.txt", "a");
-    if (fhash) {
-        fprintf(fhash, "DEBUG-SIGHASH: scriptCode size=%zu, txTmp.vin[%d].scriptSig size=%zu, serialized size=%zu\n",
-                scriptCode.size(), nIn, txTmp.vin[nIn].scriptSig.size(), ss.size());
-        // Print LAST 100 bytes of serialized tx (outputs + locktime + hashtype)
-        fprintf(fhash, "DEBUG-SIGHASH-TAIL: ...");
-        size_t start = ss.size() > 100 ? ss.size() - 100 : 0;
-        for (size_t i = start; i < ss.size(); i++) {
-            fprintf(fhash, "%02x", (unsigned char)ss[i]);
-        }
-        fprintf(fhash, "\n");
-        fclose(fhash);
-    }
     
     return Hash(ss.begin(), ss.end());
 }
@@ -1388,7 +1295,6 @@ bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CSc
     // Hybrid signature format: [1 byte: ECDSA len] [ECDSA sig] [ML-DSA pub 1952] [ML-DSA sig 3309]
     // Minimum size: 1 + ~72 + 1952 + 3309 = ~5334 bytes
     if (vchSig.size() > 5000) {
-        printf("✅ QUANTUM-SAFE: Verifying hybrid signature (ECDSA + ML-DSA with embedded pubkey)\n");
         // VerifyHybrid will extract ML-DSA pubkey from signature and verify both components
         if (!key.VerifyHybrid(sighash, vchSig))
             return false;
@@ -1396,7 +1302,6 @@ bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CSc
 #endif
     {
         // Fall back to ECDSA-only verification for legacy signatures
-        printf("⚠️  LEGACY: Verifying ECDSA-only signature (NOT quantum-safe)\n");
         if (!key.Verify(sighash, vchSig))
             return false;
     }
@@ -1496,10 +1401,7 @@ public:
                (unsigned long long)nCacheHits, hitRate);
         printf("  Cache Misses: %llu (%.2f%%)\n", 
                (unsigned long long)nCacheMisses, 100.0 - hitRate);
-        printf("  Total Verifications: %llu\n", 
-               (unsigned long long)nTotalVerifications);
         printf("  Avg Verify Time: %.3f ms\n", avgVerifyTime);
-        printf("  Total Verify Time: %.3f seconds\n", nTotalVerifyTime / 1000000.0);
     }
 };
 
@@ -1707,21 +1609,13 @@ bool Sign1(const CKeyID& address, const CKeyStore& keystore, uint256 hash, int n
 #ifdef ENABLE_MLDSA
     // Use hybrid signing for quantum-safe keys
     if (key.IsHybrid()) {
-        printf("✅ QUANTUM-SAFE: Using hybrid signature (ECDSA + ML-DSA)\n");
-        printf("   ML-DSA priv key size: %zu bytes\n", key.GetMLDSAPrivKey().size());
-        printf("   ML-DSA pub key size: %zu bytes\n", key.GetMLDSAPubKey().size());
         if (!key.SignHybrid(hash, vchSig))
             return false;
     } else
 #endif
     {
         // Fall back to ECDSA-only signing for legacy keys
-        printf("⚠️  LEGACY: Using ECDSA-only signature (NOT quantum-safe)\n");
 #ifdef ENABLE_MLDSA
-        printf("   Key has ML-DSA priv? %s (size: %zu)\n", 
-               key.HasMLDSAKey() ? "YES" : "NO", key.GetMLDSAPrivKey().size());
-        printf("   Key has ML-DSA pub? %s (size: %zu)\n", 
-               !key.GetMLDSAPubKey().empty() ? "YES" : "NO", key.GetMLDSAPubKey().size());
 #endif
         if (!key.Sign(hash, vchSig))
             return false;
@@ -1781,14 +1675,9 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         {
             CPubKey vch;
             keystore.GetPubKey(keyID, vch);
-            printf("DEBUG Solver TX_PUBKEYHASH: About to add pubkey to scriptSig\n");
 #ifdef ENABLE_MLDSA
-            printf("DEBUG Solver: vch.HasMLDSAKey()=%d, vch.GetMLDSAPubKey() size=%zu\n",
-                   vch.HasMLDSAKey(), vch.GetMLDSAPubKey().size());
 #endif
-            printf("DEBUG Solver: scriptSigRet size before adding pubkey=%zu\n", scriptSigRet.size());
             scriptSigRet << vch;
-            printf("DEBUG Solver: scriptSigRet size after adding pubkey=%zu\n", scriptSigRet.size());
         }
         return true;
     case TX_SCRIPTHASH:
@@ -1969,121 +1858,58 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, vecto
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn,
                   bool fValidatePayToScriptHash, int nHashType)
 {
-    printf("DEBUG VerifyScript: Starting verification\n");
-    printf("DEBUG VerifyScript: scriptSig size=%zu, scriptPubKey size=%zu\n", 
-           scriptSig.size(), scriptPubKey.size());
     
     vector<vector<unsigned char> > stack, stackCopy;
-    printf("DEBUG VerifyScript: Evaluating scriptSig\n");
     if (!EvalScript(stack, scriptSig, txTo, nIn, nHashType))
     {
-        printf("ERROR VerifyScript: EvalScript failed for scriptSig!\n");
         return false;
     }
-    printf("DEBUG VerifyScript: scriptSig evaluation succeeded, stack size=%zu\n", stack.size());
     
     if (fValidatePayToScriptHash)
         stackCopy = stack;
     
-    printf("DEBUG VerifyScript: Evaluating scriptPubKey\n");
     if (!EvalScript(stack, scriptPubKey, txTo, nIn, nHashType))
     {
-        printf("ERROR VerifyScript: EvalScript failed for scriptPubKey!\n");
         return false;
     }
-    printf("DEBUG VerifyScript: scriptPubKey evaluation succeeded, stack size=%zu\n", stack.size());
     
     if (stack.empty())
     {
-        printf("ERROR VerifyScript: Stack is empty after evaluation!\n");
         return false;
     }
 
     if (CastToBool(stack.back()) == false)
     {
-        printf("ERROR VerifyScript: Top of stack cast to false!\n");
         return false;
     }
     
-    printf("DEBUG VerifyScript: All checks passed!\n");
 
     // Additional validation for spend-to-script-hash transactions:
     if (fValidatePayToScriptHash && scriptPubKey.IsPayToScriptHash())
     {
-        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f) {
-            fprintf(f, "DEBUG-P2SH: Validating P2SH transaction\n");
-            fclose(f);
-        }
         
         if (!scriptSig.IsPushOnly()) // scriptSig must be literals-only
         {
-            FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-            if (f) {
-                fprintf(f, "DEBUG-P2SH: FAILED - scriptSig is not push-only!\n");
-                fprintf(f, "DEBUG-P2SH: scriptSig size = %lu bytes\n", scriptSig.size());
-                // Log opcodes
-                CScript::const_iterator pc = scriptSig.begin();
-                int op_count = 0;
-                while (pc < scriptSig.end() && op_count < 10)
-                {
-                    opcodetype opcode;
-                    vector<unsigned char> vchData;
-                    if (!scriptSig.GetOp(pc, opcode, vchData))
-                        break;
-                    fprintf(f, "DEBUG-P2SH:   Op[%d]: opcode=0x%02x (%d), data_size=%lu\n", 
-                            op_count, opcode, opcode, vchData.size());
-                    op_count++;
-                }
-                fclose(f);
-            }
             return false;            // or validation fails
         }
 
-        FILE* f2 = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f2) {
-            fprintf(f2, "DEBUG-P2SH: scriptSig is push-only ✓\n");
-            fprintf(f2, "DEBUG-P2SH: stackCopy size = %lu\n", stackCopy.size());
-            fclose(f2);
-        }
 
         const valtype& pubKeySerialized = stackCopy.back();
         CScript pubKey2(pubKeySerialized.begin(), pubKeySerialized.end());
         popstack(stackCopy);
 
-        FILE* f3 = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f3) {
-            fprintf(f3, "DEBUG-P2SH: Evaluating redeem script (size=%lu bytes)\n", pubKey2.size());
-            fprintf(f3, "DEBUG-P2SH: Stack size before eval = %lu\n", stackCopy.size());
-            fclose(f3);
-        }
 
         if (!EvalScript(stackCopy, pubKey2, txTo, nIn, nHashType))
         {
-            FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-            if (f) {
-                fprintf(f, "DEBUG-P2SH: FAILED - EvalScript returned false for redeem script\n");
-                fclose(f);
-            }
             return false;
         }
         
         if (stackCopy.empty())
         {
-            FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-            if (f) {
-                fprintf(f, "DEBUG-P2SH: FAILED - stack empty after eval\n");
-                fclose(f);
-            }
             return false;
         }
         
         bool result = CastToBool(stackCopy.back());
-        FILE* f4 = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f4) {
-            fprintf(f4, "DEBUG-P2SH: Final result = %s\n", result ? "TRUE ✓" : "FALSE ✗");
-            fclose(f4);
-        }
         
         return result;
     }
@@ -2126,13 +1952,10 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTrans
 
     // Test solution
     // IMPORTANT: Use SIGHASH_ALL (1) not 0, so OP_CHECKMLDSASIG gets correct nHashType
-    printf("DEBUG SignSignature: Testing solution with VerifyScript\n");
     if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, true, SIGHASH_ALL))
     {
-        printf("ERROR SignSignature: VerifyScript failed!\n");
         return false;
     }
-    printf("DEBUG SignSignature: VerifyScript succeeded!\n");
 
     return true;
 }
@@ -2140,12 +1963,6 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTrans
 
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType)
 {
-    FILE* flog = fopen("/tmp/mldsa_debug.txt", "a");
-    if (flog) {
-        fprintf(flog, "DEBUG-VERIFYSIG: nIn=%d, fValidateP2SH=%d, nHashType=%d\n", 
-                nIn, fValidatePayToScriptHash, nHashType);
-        fclose(flog);
-    }
     
     assert(nIn < txTo.vin.size());
     const CTxIn& txin = txTo.vin[nIn];
@@ -2158,11 +1975,6 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
 
     bool result = VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, fValidatePayToScriptHash, nHashType);
     
-    FILE* flog2 = fopen("/tmp/mldsa_debug.txt", "a");
-    if (flog2) {
-        fprintf(flog2, "DEBUG-VERIFYSIG: VerifyScript returned %s\n", result ? "TRUE" : "FALSE");
-        fclose(flog2);
-    }
     
     return result;
 }
