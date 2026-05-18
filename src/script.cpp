@@ -892,21 +892,24 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         return false;
                     valtype& vch = stacktop(-1);
                     valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
+                    // vch can be empty (the script pushed an empty value
+                    // before hashing); .data() is well-defined on empty
+                    // vectors whereas &vch[0] is UB. Same for vchHash.
                     if (opcode == OP_RIPEMD160)
-                        RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
+                        RIPEMD160(vch.data(), vch.size(), vchHash.data());
                     else if (opcode == OP_SHA1)
-                        SHA1(&vch[0], vch.size(), &vchHash[0]);
+                        SHA1(vch.data(), vch.size(), vchHash.data());
                     else if (opcode == OP_SHA256)
-                        SHA256(&vch[0], vch.size(), &vchHash[0]);
+                        SHA256(vch.data(), vch.size(), vchHash.data());
                     else if (opcode == OP_HASH160)
                     {
                         uint160 hash160 = Hash160(vch);
-                        memcpy(&vchHash[0], &hash160, sizeof(hash160));
+                        memcpy(vchHash.data(), &hash160, sizeof(hash160));
                     }
                     else if (opcode == OP_HASH256)
                     {
                         uint256 hash = Hash(vch.begin(), vch.end());
-                        memcpy(&vchHash[0], &hash, sizeof(hash));
+                        memcpy(vchHash.data(), &hash, sizeof(hash));
                     }
                     popstack(stack);
                     stack.push_back(vchHash);
