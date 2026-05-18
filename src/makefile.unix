@@ -131,6 +131,22 @@ endif
 
 DEBUGFLAGS=-g
 
+# M1.5: Sanitizer build (developer-only). Usage:
+#   make SANITIZE=1 aumcoind        # full daemon under ASan + UBSan
+#   make SANITIZE=1 test_aumcoin    # test binary under ASan + UBSan
+#   make sanitize                   # convenience: clean + SANITIZE=1 test_aumcoin
+# FORTIFY_SOURCE is incompatible with ASan instrumentation (libc fortified
+# wrappers double-count buffer sizes), so it's filtered out under SANITIZE.
+# Optimization is lowered to -O1 for readable backtraces; PIE and stack
+# canaries remain on.
+ifeq ($(SANITIZE),1)
+    HARDENING := $(filter-out -D_FORTIFY_SOURCE=2,$(HARDENING))
+    SAN_FLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
+    HARDENING += $(SAN_FLAGS)
+    LIBS += $(SAN_FLAGS)
+    DEBUGFLAGS = -g -O1
+endif
+
 # CXXFLAGS can be specified on the make command line, so we use xCXXFLAGS that only
 # adds some defaults in front. Unfortunately, CXXFLAGS=... $(CXXFLAGS) does not work.
 xCXXFLAGS=-O2 -pthread -Wall -Wextra -Wformat -Wformat-security -Wno-unused-parameter \
@@ -202,6 +218,13 @@ aumcoind: $(OBJS:obj/%=obj/%)
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
 # Exclude standalone test files with their own main()
 TESTOBJS := $(filter-out obj-test/bignum_debug.o obj-test/bignum_quick_test.o obj-test/ecdsa_openssl_test.o obj-test/wallet_crypto_test.o obj-test/key_quick_test.o obj-test/mldsa_liboqs_test.o obj-test/mldsa_wrapper_test.o,$(TESTOBJS))
+# Exclude ML-DSA test files when building without liboqs (they reference
+# IsHybrid/HasMLDSAKey/GetMLDSAPubKey which only exist under ENABLE_MLDSA).
+# Real PQ test coverage lives in M1.3 of the plan; this just unblocks the
+# no-liboqs build path so CI can run `make test_aumcoin` everywhere.
+ifneq ($(LIBOQS_AVAILABLE),yes)
+TESTOBJS := $(filter-out obj-test/mldsa_multisig_test.o obj-test/mldsa_multisig_tx_test.o obj-test/hybrid_key_test.o,$(TESTOBJS))
+endif
 
 obj-test/%.o: test/%.cpp
 	$(CXX) -c $(TESTDEFS) $(xCXXFLAGS) -MMD -o $@ $<
@@ -220,5 +243,12 @@ clean:
 	-rm -f obj/*.P
 	-rm -f obj-test/*.P
 	-rm -f src/build.h
+
+# M1.5: Sanitizer convenience target. Forces a clean rebuild under
+# AddressSanitizer + UndefinedBehaviorSanitizer.
+.PHONY: sanitize
+sanitize:
+	$(MAKE) -f makefile.unix clean
+	$(MAKE) -f makefile.unix SANITIZE=1 test_aumcoin
 
 FORCE:
