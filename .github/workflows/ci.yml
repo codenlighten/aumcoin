@@ -98,23 +98,19 @@ jobs:
         working-directory: src
         run: nice -n 19 make -f makefile.unix -j$(nproc) test_aumcoin
 
-      # NOTE: 3 test cases are known to fail due to *design intent*, not bugs:
-      #   - key_tests/key_test1       (WIF prefix differs from upstream Bitcoin)
-      #   - script_tests/script_valid (NOP1-10 are no longer no-ops — Phase 1)
-      #   - script_tests/script_invalid (OP_CAT/MUL/etc. are no longer disabled)
-      # M1.3 in the plan will rewrite these vectors against aumcoin's actual
-      # rules. Until then, the test step is advisory: the binary must build
-      # and run, and the failure count must not exceed the known baseline.
-      - name: Run Boost.Test suite (advisory until M1.3)
+      # M1.3 fixed the three previously-divergent vectors. Baseline is now zero
+      # failures; any regression fails CI. If you bump the baseline above zero
+      # to land a PR, open a tracking issue first.
+      - name: Run Boost.Test suite
         working-directory: src
         run: |
           set +e
           ./test_aumcoin --report_level=short > test_out.txt 2>&1
           rc=$?
           tail -10 test_out.txt
-          # Baseline as of M1.6 commit:
-          BASELINE_FAILED_CASES=3
-          BASELINE_FAILED_ASSERTS=39
+          # Baseline must stay at zero (M1.3 rewrote the design-divergent vectors).
+          BASELINE_FAILED_CASES=0
+          BASELINE_FAILED_ASSERTS=0
           got_cases=$(grep -oE '[0-9]+ test cases out of [0-9]+ failed' test_out.txt \
                        | awk '{print $1}' | head -1)
           got_asserts=$(grep -oE '[0-9]+ assertions out of [0-9]+ failed' test_out.txt \
@@ -155,8 +151,8 @@ jobs:
           docker run --rm -v "$PWD:/work" -w /work/src aumcoin-build:openssl11 \
             bash -c "nice -n 19 make -f makefile.unix -j\$(nproc) aumcoind"
 
-      # Same known-failure baseline as the OpenSSL 3 job — see note there.
-      - name: Build + run tests inside container (advisory until M1.3)
+      # Same zero-failure baseline as the OpenSSL 3 job.
+      - name: Build + run tests inside container
         run: |
           docker run --rm -v "$PWD:/work" -w /work/src aumcoin-build:openssl11 \
             bash -c "
@@ -164,8 +160,8 @@ jobs:
               nice -n 19 make -f makefile.unix -j\$(nproc) test_aumcoin || exit 1
               ./test_aumcoin --report_level=short > test_out.txt 2>&1
               tail -10 test_out.txt
-              BASELINE_FAILED_CASES=3
-              BASELINE_FAILED_ASSERTS=39
+              BASELINE_FAILED_CASES=0
+              BASELINE_FAILED_ASSERTS=0
               got_cases=\$(grep -oE '[0-9]+ test cases out of [0-9]+ failed' test_out.txt | awk '{print \$1}' | head -1)
               got_asserts=\$(grep -oE '[0-9]+ assertions out of [0-9]+ failed' test_out.txt | awk '{print \$1}' | head -1)
               echo \"Result: \${got_cases:-0} cases failed (baseline \$BASELINE_FAILED_CASES), \${got_asserts:-0} assertions failed (baseline \$BASELINE_FAILED_ASSERTS)\"
