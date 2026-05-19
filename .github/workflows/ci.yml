@@ -74,6 +74,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             pkg-config \
+            cmake \
             libssl-dev \
             libboost-all-dev \
             libboost-test-dev \
@@ -86,8 +87,34 @@ jobs:
           pkg-config --modversion openssl
           test "$(pkg-config --modversion openssl | cut -d. -f1)" = "3"
 
+      # liboqs is not packaged for Ubuntu. Build + install from source so the
+      # ML-DSA test suite (mldsa_sigverify_tests, hybrid_sigverify_tests) and
+      # the consensus path under OP_CHECKMLDSASIG actually exercise in CI.
+      # Pinning a tag avoids surprise ABI changes; bumping is intentional.
+      - name: Cache liboqs
+        id: cache-liboqs
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: liboqs-0.15.0-ubuntu24-openssl3-v1
+      - name: Build + install liboqs 0.15.0 (cache miss only)
+        if: steps.cache-liboqs.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs /tmp/liboqs
+          mkdir /tmp/liboqs/build
+          cd /tmp/liboqs/build
+          cmake -DCMAKE_INSTALL_PREFIX=$HOME/.local \
+                -DOQS_BUILD_ONLY_LIB=ON \
+                -DOQS_USE_OPENSSL=ON ..
+          make -j$(nproc) install
+      - name: Verify liboqs is installed
+        run: |
+          PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig pkg-config --modversion liboqs
+
       - name: Build aumcoind
         working-directory: src
+        env:
+          PKG_CONFIG_PATH: /home/runner/.local/lib/pkgconfig
         run: nice -n 19 make -f makefile.unix -j$(nproc) aumcoind
 
       - name: Smoke test (binary runs, prints help)
@@ -96,6 +123,8 @@ jobs:
 
       - name: Build test_aumcoin
         working-directory: src
+        env:
+          PKG_CONFIG_PATH: /home/runner/.local/lib/pkgconfig
         run: nice -n 19 make -f makefile.unix -j$(nproc) test_aumcoin
 
       # M1.3 fixed the three previously-divergent vectors. Baseline is now zero
@@ -187,14 +216,38 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             pkg-config \
+            cmake \
             libssl-dev \
             libboost-all-dev \
             libboost-test-dev \
             libdb++-dev \
             libminiupnpc-dev
 
+      # Install liboqs so the ML-DSA destruction paths actually exercise
+      # under ASan/UBSan. The free()-at-shutdown bug surfaced locally
+      # under ENABLE_MLDSA — this CI job should reproduce it cleanly
+      # with a usable backtrace.
+      - name: Cache liboqs
+        id: cache-liboqs-san
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: liboqs-0.15.0-ubuntu24-openssl3-v1
+      - name: Build + install liboqs 0.15.0 (cache miss only)
+        if: steps.cache-liboqs-san.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs /tmp/liboqs
+          mkdir /tmp/liboqs/build
+          cd /tmp/liboqs/build
+          cmake -DCMAKE_INSTALL_PREFIX=$HOME/.local \
+                -DOQS_BUILD_ONLY_LIB=ON \
+                -DOQS_USE_OPENSSL=ON ..
+          make -j$(nproc) install
+
       - name: make sanitize (builds test_aumcoin under ASan + UBSan)
         working-directory: src
+        env:
+          PKG_CONFIG_PATH: /home/runner/.local/lib/pkgconfig
         run: nice -n 19 make -f makefile.unix sanitize
 
       - name: Run sanitized Boost.Test suite
