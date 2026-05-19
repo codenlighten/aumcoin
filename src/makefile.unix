@@ -218,19 +218,13 @@ aumcoind: $(OBJS:obj/%=obj/%)
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
 # Exclude standalone test files with their own main()
 TESTOBJS := $(filter-out obj-test/bignum_debug.o obj-test/bignum_quick_test.o obj-test/ecdsa_openssl_test.o obj-test/wallet_crypto_test.o obj-test/key_quick_test.o obj-test/mldsa_liboqs_test.o obj-test/mldsa_wrapper_test.o,$(TESTOBJS))
-# Exclude ML-DSA test files unconditionally for now. The three test files
-# below were written BEFORE the hybrid-signature format change (commit
-# 36ae25e: ML-DSA pubkey embedded in sig) and the multisig TOALTSTACK
-# redesign (commit 1166273: structure changed). Their assertions still
-# encode the pre-change format/structure, so they fail when actually
-# linked into test_aumcoin.
-#
-# In the no-liboqs build they additionally don't even compile (reference
-# IsHybrid/HasMLDSAKey/GetMLDSAPubKey).
-#
-# Proper M1.3 work will rewrite these against the current format, with
-# real-signature fixtures generated via liboqs. Until then: filter them
-# out so test_aumcoin builds AND runs green in both configurations.
+# Exclude ML-DSA test files that predate the format/structure changes in
+# commits 36ae25e (hybrid-sig embeds ML-DSA pubkey) and 1166273 (TOALTSTACK
+# multisig redesign). They still encode the pre-change expectations and
+# fail under ENABLE_MLDSA; in no-liboqs builds they don't compile at all.
+# Real PQ test coverage lives in mldsa_sigverify_tests.cpp and
+# hybrid_sigverify_tests.cpp (M1.3 proper) — these three test files are
+# stale and should be rewritten or deleted in a follow-up.
 TESTOBJS := $(filter-out obj-test/mldsa_multisig_test.o obj-test/mldsa_multisig_tx_test.o obj-test/hybrid_key_test.o,$(TESTOBJS))
 
 obj-test/%.o: test/%.cpp
