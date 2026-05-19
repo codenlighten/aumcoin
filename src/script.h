@@ -26,6 +26,30 @@ enum
     SIGHASH_ANYONECANPAY = 0x80,
 };
 
+/** M1.4: Script-execution resource limits (consensus rules).
+ *
+ *  Bitcoin's classic per-script opcode cap was 201. The project's Phase 1
+ *  ("Scaling Liberation") lifted block-size and script-size limits to enable
+ *  meaningful smart contracts on the restored OP_CODES. The unmodified 201-op
+ *  cap negated much of that ambition; M1.4 raises it 100x while ALSO adding a
+ *  weighted cost budget so a script can't sneak under the count limit by
+ *  packing it full of expensive operations (CHECKMULTISIG with many pubkeys,
+ *  ML-DSA verifies, etc.).
+ *
+ *  MAX_OPS_PER_SCRIPT       - hard count cap on non-push opcodes.
+ *  MAX_SCRIPT_OP_COST       - weighted cost budget. min(opcost) == 1, so
+ *                             count is implicitly capped here too.
+ *  OP_COST_CHECKMLDSASIG    - ML-DSA-65 verify ≈ 100x ECDSA verify
+ *                             (FIPS 204 reference numbers); matches the
+ *                             ratio used in the Phase 2 sigops table.
+ *
+ *  These ship in genesis-era consensus rules; bumping them post-mainnet
+ *  is a hard fork.
+ */
+static const int MAX_OPS_PER_SCRIPT    = 20000;  // was 201 (Bitcoin)
+static const int MAX_SCRIPT_OP_COST    = 20000;  // weighted budget
+static const int OP_COST_CHECKMLDSASIG = 100;    // 100x ECDSA
+
 
 enum txnouttype
 {
