@@ -157,6 +157,7 @@ OBJS= \
     obj/checkpoints.o \
     obj/netbase.o \
     obj/addrman.o \
+    obj/bech32.o \
     obj/crypter.o \
     obj/key.o \
     obj/db.o \

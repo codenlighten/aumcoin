@@ -158,8 +158,14 @@ BOOST_AUTO_TEST_CASE(rejects_wrong_size_pubkey)
     std::vector<unsigned char> sig;
     BOOST_REQUIRE(k.SignMLDSA(h, sig));
 
-    std::vector<unsigned char> short_pub(k.GetMLDSAPubKey().begin(),
-                                         k.GetMLDSAPubKey().end() - 1);
+    // GetMLDSAPubKey() returns by value. Bind to a local so both
+    // iterators refer to the same vector — calling it twice in the
+    // ctor gives two different temporaries and the .begin() iterator
+    // dangles, which surfaces as std::length_error in builds where
+    // memory layout doesn't happen to cover for it.
+    auto pub = k.GetMLDSAPubKey();
+    BOOST_REQUIRE_EQUAL(pub.size(), (size_t)MLDSA::PUBLIC_KEY_BYTES);
+    std::vector<unsigned char> short_pub(pub.begin(), pub.end() - 1);
     BOOST_CHECK(!CKey::VerifyMLDSA(h, sig, short_pub));
 }
 
