@@ -546,12 +546,6 @@ Value signmldsatx(const Array& params, bool fHelp)
     {
         // Unsigned transaction - scriptSig is the redeem script
         redeemScript = txin.scriptSig;
-        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f) {
-            fprintf(f, "DEBUG-UNSIGNED: Detected unsigned TX, redeemScript size=%zu, first byte=0x%02x\n", 
-                    redeemScript.size(), redeemScript.size() > 0 ? redeemScript[0] : 0);
-            fclose(f);
-        }
     }
     else
     {
@@ -590,12 +584,6 @@ Value signmldsatx(const Array& params, bool fHelp)
                 nSigCount++;
         }
         
-        FILE* f = fopen("/tmp/mldsa_debug.txt", "a");
-        if (f) {
-            fprintf(f, "DEBUG-PARTIAL: Found %zu signature slots, %d non-empty (reversed from scriptSig)\n", 
-                    existingSignatures.size(), nSigCount);
-            fclose(f);
-        }
     }
 
     // Verify this key is part of the multisig
@@ -607,13 +595,6 @@ Value signmldsatx(const Array& params, bool fHelp)
     int nRequired = 0;
     vector<vector<unsigned char> > vchPubKeys;
     
-    FILE* fScript = fopen("/tmp/mldsa_debug.txt", "a");
-    if (fScript) {
-        fprintf(fScript, "DEBUG: redeemScript size = %zu\n", redeemScript.size());
-        if (redeemScript.size() > 0)
-            fprintf(fScript, "DEBUG: redeemScript first byte = 0x%02x\n", redeemScript[0]);
-        fclose(fScript);
-    }
     
     CScript::const_iterator pcScript = redeemScript.begin();
     
@@ -627,12 +608,6 @@ Value signmldsatx(const Array& params, bool fHelp)
         // Also look for nRequired (OP_1 to OP_16) near the end
         else if (opcode >= OP_1 && opcode <= OP_16)
             nRequired = CScript::DecodeOP_N(opcode);
-    }
-    
-    fScript = fopen("/tmp/mldsa_debug.txt", "a");
-    if (fScript) {
-        fprintf(fScript, "DEBUG: Found %zu pubkeys, nRequired = %d\n", vchPubKeys.size(), nRequired);
-        fclose(fScript);
     }
     
     if (nRequired == 0)
@@ -669,15 +644,6 @@ Value signmldsatx(const Array& params, bool fHelp)
         uint256 sighash = SignatureHash(scriptCodeForSigning, tx, 0, SIGHASH_ALL);
         
         // DEBUG: Log the hash being signed
-        FILE* fsign = fopen("/tmp/mldsa_debug.txt", "a");
-        if (fsign) {
-            fprintf(fsign, "DEBUG-SIGN: address=%s, redeemScript size=%zu, scriptCode size=%zu, sighash=%s\n", 
-                    address.ToString().c_str(),
-                    redeemScript.size(),
-                    scriptCodeForSigning.size(),
-                    sighash.GetHex().c_str());
-            fclose(fsign);
-        }
 
         // Sign with ML-DSA
         vector<unsigned char> vchSig;

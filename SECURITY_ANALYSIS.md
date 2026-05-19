@@ -6,7 +6,31 @@
 
 ---
 
-## 📊 Executive Summary
+## ⚠️ Status Reconciliation (2026-05-18)
+
+The body below is historical. Several "PRIORITY 1" items have been completed since publication, and some unstated items have become more urgent. Read this section first; treat the rest as evolving context, not current status.
+
+**Items now DONE (do not redo):**
+- ✅ **CBigNum refactored to wrapper/composition** — `src/bignum.h:53` holds `BIGNUM* bn` via composition, not inheritance. OpenSSL 3.x build path exists; Makefile auto-detects (`src/makefile.unix:14-31`).
+- ✅ **OP_CAT size-check ordering bug fixed** — check is now BEFORE `insert()` at `src/script.cpp:608-615`.
+- ✅ **BigNum operand cap (`nMaxBigNumBits = 4096`)** in place for OP_MUL/DIV/MOD at `src/script.cpp:46,805`.
+- ✅ **Build hardening** — `-fstack-protector-strong`, `-Wl,-z,relro/now/noexecstack`, `-fPIE -pie`, `-D_FORTIFY_SOURCE=2` already in `src/makefile.unix:99-130`.
+- ✅ **OpenSSL 1.0.2g moved off** — Dockerfile pins Ubuntu 20.04 + OpenSSL 1.1.1; system also builds on OpenSSL 3.0.13.
+
+**Items still OPEN (and not previously listed):**
+- 🚨 **Debug instrumentation in consensus paths** — 281 `printf`/`fopen` calls across `src/script.cpp`, `src/main.cpp`, `src/wallet.cpp`, `src/walletdb.cpp`, `src/key.cpp`, `src/rpcdump.cpp`, `src/keystore.cpp`. Includes 35 `fopen("/tmp/mldsa_debug.txt", "a")` writes inside `EvalScript`. Symlink/TOCTOU hazard plus open-syscall-per-opcode IBD killer. **Phase 1.1** in plan.
+- 🚨 **PQ-safety not enforced at consensus** — `CheckSig` selects hybrid vs legacy on `vchSig.size() > 5000` (magic number). The scriptPubKey commits only to `HASH160(ecdsa_pub)`, so any holder of the ECDSA key can spend an "aumcoin quantum" UTXO with a legacy ECDSA-only signature, bypassing the ML-DSA half. The "quantum safe" claim is currently cryptographic theater. **Phase 2** in plan.
+- 🚨 **`OP_CHECKMLDSASIG` is built on `OP_NOP4`** (`src/script.h:184`). Any node compiled without `ENABLE_MLDSA` treats every ML-DSA verify as a no-op success — chain-split / theft vector. **M2.6** in plan.
+- 🟠 **Berkeley DB 5.3 EOL** — still in use (`src/db.cpp`, `src/walletdb.cpp`). Migration to SQLite tracked as **M1.7**.
+- 🟠 **Script execution unmetered for consensus** — the local-only `nMaxBigNumBits` cap exists, but there is no `MAX_OPS_PER_SCRIPT_TX` / per-opcode cost budget. With 128 MB blocks and restored OP_MUL/DIV, a CPU-DoS via crafted scripts remains feasible. **M1.4** in plan.
+- 🟠 **No automated tests for hybrid signature, ML-DSA, or P2SH-ML-DSA-multisig code paths.** `src/test/` has 7 standalone test executables (their own `main()`) that don't build via `make` at all. **M1.3** converts the useful ones to Boost.Test.
+- 🟠 **OpenSSL 3 build is not verified consensus-identical to 1.1** — CBigNum serialization byte-equivalence has not been proven across versions. A 1-byte diff in `getvch()/setvch()` would fork the chain. **M1.2** in plan.
+
+**See:** `/home/greg/.claude/plans/inherited-jingling-hummingbird.md` for the full sequenced plan (Phase 0 = now; Phase 1 = trustworthy foundation; Phase 2 = PQ-enforcement; Phase 3+ = launch).
+
+---
+
+## 📊 Executive Summary (historical, as of Jan 2026)
 
 The v0.6.3c codebase has **GOOD fundamentals** but needs **critical security updates** before mainnet launch with real value. The code was secure for 2011 standards but modern attack vectors require hardening.
 

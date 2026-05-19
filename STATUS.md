@@ -1,12 +1,40 @@
 # 🎊 AUMCOIN - PROJECT STATUS REPORT
 
-**Date**: January 1, 2026  
-**Status**: ✅ **NETWORK READY FOR LAUNCH**  
-**Repository**: https://github.com/codenlighten/aumcoin
+**Original date**: January 1, 2026  
+**Updated**: 2026-05-18 — see reconciliation below before reading the rest.
 
 ---
 
-## 📊 EXECUTIVE SUMMARY
+## ⚠️ Status Reconciliation (2026-05-18)
+
+This document was written at a moment of optimism and claims things that are not true as of the 2026-05-18 review. Treat the body below as historical project narrative, not current status.
+
+**Corrected status:**
+
+- ❌ NOT "ready for mainnet launch" — pre-alpha. Testnet is genesis-only; no public network has ever run.
+- ❌ NOT "100% test coverage on critical paths" — there are zero automated tests for the recent ML-DSA / hybrid-signature work. 7 standalone test executables exist under `src/test/` but they don't build via `make` and they're not run by anything.
+- ❌ NOT "zero technical debt" — 281 debug `printf`/`fopen` calls live in consensus paths today (`src/script.cpp`, `src/main.cpp`, `src/key.cpp`, `src/keystore.cpp`, `src/wallet.cpp`, `src/walletdb.cpp`, `src/rpcdump.cpp`), including 35 `fopen("/tmp/mldsa_debug.txt","a")` writes inside `EvalScript`.
+- ❌ NOT "no known vulnerabilities, clean code audit" — no external audit has been performed. Two design-level issues (hybrid P2PKH not enforced at consensus; `OP_CHECKMLDSASIG`-as-`OP_NOP4` chain-split risk) block mainnet.
+- ❌ "Docker builds with Ubuntu 16.04 + OpenSSL 1.0.2g" is wrong in the table below — the actual `Dockerfile` pins Ubuntu 20.04 + OpenSSL 1.1.1 (`build-docker.sh` banner is stale).
+- ✅ Genesis block IS mined (Hash: `5828...2950`, Nonce: 73563) — that claim stands.
+- ✅ 15 OP_CODES IS restored — that claim stands.
+- ✅ 128 MB blocks IS in code — but the chain has never been load-tested at this size.
+- ✅ 2-of-3 ML-DSA P2SH multisig DOES work end-to-end on testnet (TXID `f5bca6...` accepted to mempool Jan 15) — that claim stands and is genuinely novel.
+- 🟡 Hybrid ECDSA + ML-DSA P2PKH "works" but is not enforced at consensus — see SECURITY_ANALYSIS.md reconciliation.
+
+**Real next steps** (per the master plan at `/home/greg/.claude/plans/inherited-jingling-hummingbird.md`):
+1. Phase 0 — Reality check & repo hygiene (in progress)
+2. Phase 1 — Trustworthy foundation: strip debug code, OpenSSL 3 verification, real test coverage, script metering, SQLite migration (12 weeks)
+3. Phase 2 — Quantum-safety made real at consensus level: new hybrid address format, kill the magic-number sig selector, BIP9-style activation, mandatory `ENABLE_MLDSA`, algorithm-ID versioning (12 weeks)
+4. Phase 3 — Public testnet with seed nodes, DNS seeds, faucet, explorer, 128 MB block load tests (6 weeks)
+5. Phase 4 — External audit, bug bounty, fuzz harness, governance (12 weeks)
+6. Phase 5 — Mainnet, then HTLC bridge, modern wallet, exchange integration
+
+**ETA to honest mainnet:** ~10 months from 2026-05-18 with focused execution.
+
+---
+
+## 📊 EXECUTIVE SUMMARY (historical, as of Jan 2026 — see reconciliation above)
 
 AumCoin is **COMPLETE** and ready for mainnet launch! All development phases finished successfully:
 

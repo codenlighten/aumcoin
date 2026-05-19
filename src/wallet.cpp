@@ -669,7 +669,6 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
                 }
                 else
                 {
-                    printf("ERROR: AddSupportingTransactions() : unsupported transaction\n");
                     continue;
                 }
 
@@ -749,7 +748,6 @@ void CWallet::ReacceptWalletTransactions()
                 // Update fSpent if a tx got spent somewhere else by a copy of wallet.dat
                 if (txindex.vSpent.size() != wtx.vout.size())
                 {
-                    printf("ERROR: ReacceptWalletTransactions() : txindex.vSpent.size() %d != wtx.vout.size() %d\n", txindex.vSpent.size(), wtx.vout.size());
                     continue;
                 }
                 for (unsigned int i = 0; i < txindex.vSpent.size(); i++)
@@ -1174,24 +1172,18 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
 
                 // Sign
                 int nIn = 0;
-                printf("DEBUG CreateTransaction: Signing %zu inputs\n", setCoins.size());
                 BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
                 {
                     if (!SignSignature(*this, *coin.first, wtxNew, nIn++))
                     {
-                        printf("ERROR: SignSignature failed for input %d\n", nIn-1);
                         return false;
                     }
                 }
-                printf("DEBUG CreateTransaction: All inputs signed successfully\n");
 
                 // Limit size
                 unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew, SER_NETWORK, PROTOCOL_VERSION);
-                printf("DEBUG CreateTransaction: TX size = %u bytes (limit = %u)\n", 
-                       nBytes, MAX_BLOCK_SIZE_GEN/5);
                 if (nBytes >= MAX_BLOCK_SIZE_GEN/5)
                 {
-                    printf("ERROR: Transaction too large! %u >= %u\n", nBytes, MAX_BLOCK_SIZE_GEN/5);
                     return false;
                 }
                 dPriority /= nBytes;

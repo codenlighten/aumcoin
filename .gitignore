@@ -6,9 +6,12 @@ src/build.h
 .*.swp
 *.*~*
 *.bak
+*.backup
 *.rej
 *.orig
 *.o
+*.P
+*.d
 *.patch
 .aumcoin
 #compilation and Qt preprocessor part
@@ -22,3 +25,23 @@ qrc_*.cpp
 #mac specific
 .DS_Store
 build
+# Phase 0.2: root-level build artifacts (the 55MB aumcoind binary lived here)
+/aumcoind
+/aumcoin
+# Build object directories
+obj/
+obj-test/
+# Standalone test binaries in src/test/ (executables, not source)
+src/test/bignum_debug
+src/test/bignum_quick_test
+src/test/ecdsa_openssl_test
+src/test/key_quick_test
+src/test/mldsa_liboqs_test
+src/test/mldsa_wrapper_test
+src/test/wallet_crypto_test
+# Crash dumps
+core.*
+# Local debug log path that must never exist again (regression guard)
+/tmp/mldsa_debug.txt
+# Local Claude Code state (per-machine, not project state)
+/.claude/

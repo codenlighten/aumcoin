@@ -323,8 +323,6 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
                 CPubKey pubkey(vchPubKey);
                 CKeyID keyID = pubkey.GetID();
                 mapMLDSAKeys[keyID].first = vchMLDSAPrivKey;
-                printf("DEBUG LoadWallet: Loaded ML-DSA priv key, size=%zu, address=%s\n",
-                       vchMLDSAPrivKey.size(), CBitcoinAddress(keyID).ToString().c_str());
             }
             else if (strType == "mlkey_pub")
             {
@@ -338,8 +336,6 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
                 CPubKey pubkey(vchPubKey);
                 CKeyID keyID = pubkey.GetID();
                 mapMLDSAKeys[keyID].second = vchMLDSAPubKey;
-                printf("DEBUG LoadWallet: Loaded ML-DSA pub key, size=%zu, address=%s\n",
-                       vchMLDSAPubKey.size(), CBitcoinAddress(keyID).ToString().c_str());
             }
 #endif
         }
@@ -348,7 +344,6 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
 
 #ifdef ENABLE_MLDSA
     // Now apply ML-DSA keys to the loaded ECDSA keys
-    printf("DEBUG LoadWallet: Processing %zu ML-DSA key pairs from database\n", mapMLDSAKeys.size());
     typedef std::pair<std::vector<unsigned char>, std::vector<unsigned char>> MLDSAKeyPair;
     typedef std::map<CKeyID, MLDSAKeyPair>::value_type MLDSAKeyMapItem;
     BOOST_FOREACH(const MLDSAKeyMapItem& item, mapMLDSAKeys)
@@ -357,20 +352,14 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
         const std::vector<unsigned char>& vchMLDSAPrivKey = item.second.first;
         const std::vector<unsigned char>& vchMLDSAPubKey = item.second.second;
         
-        printf("DEBUG LoadWallet: Applying ML-DSA keys to %s (priv=%zu, pub=%zu)\n",
-               CBitcoinAddress(keyID).ToString().c_str(), 
-               vchMLDSAPrivKey.size(), vchMLDSAPubKey.size());
         
         CKey key;
         if (pwallet->GetKey(keyID, key))
         {
-            printf("DEBUG LoadWallet: Found ECDSA key in wallet, adding ML-DSA components\n");
             // Add ML-DSA components to the existing key
             key.SetMLDSAPrivKey(vchMLDSAPrivKey);
             key.SetMLDSAPubKey(vchMLDSAPubKey);
             
-            printf("DEBUG LoadWallet: Key after SetML-DSA: IsHybrid=%d, priv=%zu, pub=%zu\n",
-                   key.IsHybrid(), key.GetMLDSAPrivKey().size(), key.GetMLDSAPubKey().size());
             
             // Reload the key with ML-DSA components
             if (!pwallet->LoadKey(key))
@@ -386,7 +375,6 @@ int CWalletDB::LoadWallet(CWallet* pwallet)
                    CBitcoinAddress(keyID).ToString().c_str());
         }
     }
-    printf("DEBUG LoadWallet: Finished applying ML-DSA keys\n");
 #endif
 
     BOOST_FOREACH(uint256 hash, vWalletUpgrade)

@@ -1,5 +1,7 @@
 # 🚀 AumCoin - Satoshi Vision Restored
 
+> ⚠️ **2026-05-18 reconciliation:** Genesis IS mined; testnet has never run publicly. PQ "ready" claim does not yet hold at the consensus level (see SECURITY_ANALYSIS.md reconciliation). Current authoritative status is in STATUS.md's "Status Reconciliation (2026-05-18)" section; current authoritative plan is `/home/greg/.claude/plans/inherited-jingling-hummingbird.md`.
+
 ## Executive Summary
 
 **Status: Phases 1-3 Complete ✅ | Genesis Mining Pending ⏳**

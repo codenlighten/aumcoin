@@ -297,14 +297,9 @@ CPubKey CKey::GetPubKey() const
 #ifdef ENABLE_MLDSA
     // Include ML-DSA public key if this is a hybrid key
     if (HasMLDSAKey()) {
-        printf("DEBUG CKey::GetPubKey(): Creating hybrid CPubKey, ML-DSA pub size=%zu\n", 
-               vchMLDSAPubKey.size());
         CPubKey result(vchPubKey, vchMLDSAPubKey);
-        printf("DEBUG CKey::GetPubKey(): Result HasMLDSAKey()=%d\n", result.HasMLDSAKey());
         return result;
     } else {
-        printf("DEBUG CKey::GetPubKey(): Key does NOT have ML-DSA component (size=%zu)\n",
-               vchMLDSAPubKey.size());
     }
 #endif
     
@@ -556,11 +551,6 @@ bool CKey::SignHybrid(uint256 hash, std::vector<unsigned char>& vchSig)
     // ML-DSA signature
     vchSig.insert(vchSig.end(), vchMLDSASig.begin(), vchMLDSASig.end());
     
-    printf("DEBUG SignHybrid: Created hybrid signature:\n");
-    printf("  ECDSA sig: %zu bytes\n", vchECDSASig.size());
-    printf("  ML-DSA pub: %zu bytes\n", vchMLDSAPubKey.size());
-    printf("  ML-DSA sig: %zu bytes\n", vchMLDSASig.size());
-    printf("  Total: %zu bytes\n", vchSig.size());
     
     return true;
 }
@@ -577,8 +567,6 @@ bool CKey::VerifyHybrid(uint256 hash, const std::vector<unsigned char>& vchSig)
     size_t expected_size = 1 + ecdsa_len + MLDSA::PUBLIC_KEY_BYTES + MLDSA::SIGNATURE_BYTES;
     
     if (vchSig.size() != expected_size) {
-        printf("DEBUG VerifyHybrid: Invalid signature size: %zu (expected %zu)\n", 
-               vchSig.size(), expected_size);
         return false;
     }
     
@@ -594,24 +582,17 @@ bool CKey::VerifyHybrid(uint256 hash, const std::vector<unsigned char>& vchSig)
     std::vector<unsigned char> vchMLDSASig(vchSig.begin() + 1 + ecdsa_len + MLDSA::PUBLIC_KEY_BYTES,
                                            vchSig.end());
     
-    printf("DEBUG VerifyHybrid: Extracted from signature:\n");
-    printf("  ECDSA sig: %zu bytes\n", vchECDSASig.size());
-    printf("  ML-DSA pub: %zu bytes\n", vchMLDSAPubKey.size());
-    printf("  ML-DSA sig: %zu bytes\n", vchMLDSASig.size());
     
     // Verify ECDSA signature
     if (!Verify(hash, vchECDSASig)) {
-        printf("DEBUG VerifyHybrid: ECDSA verification failed\n");
         return false;
     }
     
     // Verify ML-DSA signature using the public key from the signature
     if (!VerifyMLDSA(hash, vchMLDSASig, vchMLDSAPubKey)) {
-        printf("DEBUG VerifyHybrid: ML-DSA verification failed\n");
         return false;
     }
     
-    printf("DEBUG VerifyHybrid: Both ECDSA and ML-DSA verified successfully!\n");
     return true;
 }
 

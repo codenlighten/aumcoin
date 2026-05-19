@@ -79,5 +79,5 @@ while [ $attempt -le $RETRIES ]; do
     sleep $RETRY_DELAY
 done
 
-echo "❌ All $RETRIES attempts failed. Check daemon logs and /tmp/mldsa_debug.txt for details."
+echo "❌ All $RETRIES attempts failed. Check daemon logs (~/.aumcoin/debug.log or ~/.aumcoin/testnet3/debug.log) for details."
 exit 1

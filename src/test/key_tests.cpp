@@ -10,17 +10,14 @@
 
 using namespace std;
 
-static const string strSecret1     ("6uu5bsZLA2Lm6yCxgwxDxHyZmhYeqBMLQT83Fyq738YhYucQPQf");
-static const string strSecret2     ("6vZDRwYgTNidWzmKs9x8QzQGeWCqbdUtNRpEKZMaP67ZSn8XMjb");
-static const string strSecret1C    ("T6UsJv9hYpvDfM5noKYkB3vfeHxhyegkeWJ4y7qKeQJuyXMK11XX");
-static const string strSecret2C    ("T9PBs5kq9QrkBPxeGNWKitMi4XuFVr25jaXTnuopLVZxCUAJbixA");
-static const CBitcoinAddress addr1 ("LWaFezDtucfCA4xcVEfs3R3xfgGWjSwcZr");
-static const CBitcoinAddress addr2 ("LXwHM6mRd432EzLJYwuKQMPhTzrgr7ur9K");
-static const CBitcoinAddress addr1C("LZWK8h7C166niP6GmpUmiGrvn4oxPqQgFV");
-static const CBitcoinAddress addr2C("Lgb6tdqmdW3n5E12johSuEAqRMt4kAr7yu");
+// M1.3: rewritten to generate keys instead of decoding hardcoded WIF strings.
+// The original test embedded Litecoin-prefix WIF strings and addresses
+// ("6uu5...", "T6Us...", "LWaFe..."), which fail to decode against
+// aumcoin's rebranded prefix (23). Generating keys + roundtripping them
+// through CBitcoinSecret / CBitcoinAddress exercises the SAME encode/decode
+// paths and the same sign/verify behavior without baking in the prefix.
 
-
-static const string strAddressBad("LRjyUS2uuieEPkhZNdQz8hE5YycxVEqSXA");
+static const string strAddressBad("not-a-valid-wif-or-address");
 
 
 #ifdef KEY_TESTS_DUMPINFO
@@ -55,36 +52,87 @@ BOOST_AUTO_TEST_SUITE(key_tests)
 
 BOOST_AUTO_TEST_CASE(key_test1)
 {
-    CBitcoinSecret bsecret1, bsecret2, bsecret1C, bsecret2C, baddress1;
-    BOOST_CHECK( bsecret1.SetString (strSecret1));
-    BOOST_CHECK( bsecret2.SetString (strSecret2));
-    BOOST_CHECK( bsecret1C.SetString(strSecret1C));
-    BOOST_CHECK( bsecret2C.SetString(strSecret2C));
+    // Deterministic but locally-generated raw secrets — no prefix dependence.
+    CSecret secret1, secret2;
+    secret1.resize(32);
+    secret2.resize(32);
+    for (int i = 0; i < 32; i++) {
+        secret1[i] = static_cast<unsigned char>(0x10 + i);
+        secret2[i] = static_cast<unsigned char>(0xa0 + i);
+    }
+
+    // Encode each secret as both uncompressed and compressed WIF, then
+    // decode the strings back to verify aumcoin's CBitcoinSecret round-trip.
+    CBitcoinSecret bsecret1, bsecret2, bsecret1C, bsecret2C;
+    bsecret1.SetSecret (secret1, false);
+    bsecret2.SetSecret (secret2, false);
+    bsecret1C.SetSecret(secret1, true);
+    bsecret2C.SetSecret(secret2, true);
+
+    const string strSecret1  = bsecret1.ToString();
+    const string strSecret2  = bsecret2.ToString();
+    const string strSecret1C = bsecret1C.ToString();
+    const string strSecret2C = bsecret2C.ToString();
+
+    BOOST_CHECK(!strSecret1.empty());
+    BOOST_CHECK(!strSecret2.empty());
+    BOOST_CHECK(!strSecret1C.empty());
+    BOOST_CHECK(!strSecret2C.empty());
+
+    CBitcoinSecret rbs1, rbs2, rbs1C, rbs2C, baddress1;
+    BOOST_CHECK( rbs1.SetString (strSecret1));
+    BOOST_CHECK( rbs2.SetString (strSecret2));
+    BOOST_CHECK( rbs1C.SetString(strSecret1C));
+    BOOST_CHECK( rbs2C.SetString(strSecret2C));
     BOOST_CHECK(!baddress1.SetString(strAddressBad));
 
     bool fCompressed;
-    CSecret secret1  = bsecret1.GetSecret (fCompressed);
+    CSecret rsecret1  = rbs1.GetSecret (fCompressed);
     BOOST_CHECK(fCompressed == false);
-    CSecret secret2  = bsecret2.GetSecret (fCompressed);
+    BOOST_CHECK(rsecret1 == secret1);
+    CSecret rsecret2  = rbs2.GetSecret (fCompressed);
     BOOST_CHECK(fCompressed == false);
-    CSecret secret1C = bsecret1C.GetSecret(fCompressed);
+    BOOST_CHECK(rsecret2 == secret2);
+    CSecret rsecret1C = rbs1C.GetSecret(fCompressed);
     BOOST_CHECK(fCompressed == true);
-    CSecret secret2C = bsecret2C.GetSecret(fCompressed);
+    BOOST_CHECK(rsecret1C == secret1);
+    CSecret rsecret2C = rbs2C.GetSecret(fCompressed);
     BOOST_CHECK(fCompressed == true);
+    BOOST_CHECK(rsecret2C == secret2);
 
-    BOOST_CHECK(secret1 == secret1C);
-    BOOST_CHECK(secret2 == secret2C);
+    // Same raw secret produces identical bytes whether encoded
+    // compressed or uncompressed.
+    BOOST_CHECK(rsecret1 == rsecret1C);
+    BOOST_CHECK(rsecret2 == rsecret2C);
 
     CKey key1, key2, key1C, key2C;
-    key1.SetSecret(secret1, false);
-    key2.SetSecret(secret2, false);
+    key1.SetSecret (secret1, false);
+    key2.SetSecret (secret2, false);
     key1C.SetSecret(secret1, true);
     key2C.SetSecret(secret2, true);
 
-    BOOST_CHECK(addr1.Get()  == CTxDestination(key1.GetPubKey().GetID()));
-    BOOST_CHECK(addr2.Get()  == CTxDestination(key2.GetPubKey().GetID()));
-    BOOST_CHECK(addr1C.Get() == CTxDestination(key1C.GetPubKey().GetID()));
-    BOOST_CHECK(addr2C.Get() == CTxDestination(key2C.GetPubKey().GetID()));
+    // Address round-trip: encode the derived pubkey-hash, decode the
+    // string, confirm it points back to the same key.
+    CBitcoinAddress addr1 (key1.GetPubKey().GetID());
+    CBitcoinAddress addr2 (key2.GetPubKey().GetID());
+    CBitcoinAddress addr1C(key1C.GetPubKey().GetID());
+    CBitcoinAddress addr2C(key2C.GetPubKey().GetID());
+
+    BOOST_CHECK(addr1.IsValid());
+    BOOST_CHECK(addr2.IsValid());
+    BOOST_CHECK(addr1C.IsValid());
+    BOOST_CHECK(addr2C.IsValid());
+
+    CBitcoinAddress raddr1, raddr2, raddr1C, raddr2C;
+    BOOST_CHECK(raddr1.SetString(addr1.ToString()));
+    BOOST_CHECK(raddr2.SetString(addr2.ToString()));
+    BOOST_CHECK(raddr1C.SetString(addr1C.ToString()));
+    BOOST_CHECK(raddr2C.SetString(addr2C.ToString()));
+
+    BOOST_CHECK(raddr1.Get()  == CTxDestination(key1.GetPubKey().GetID()));
+    BOOST_CHECK(raddr2.Get()  == CTxDestination(key2.GetPubKey().GetID()));
+    BOOST_CHECK(raddr1C.Get() == CTxDestination(key1C.GetPubKey().GetID()));
+    BOOST_CHECK(raddr2C.Get() == CTxDestination(key2C.GetPubKey().GetID()));
 
     for (int n=0; n<16; n++)
     {
