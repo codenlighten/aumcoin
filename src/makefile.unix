@@ -178,8 +178,9 @@ OBJS= \
     obj/noui.o
 
 # Phase 3: ML-DSA post-quantum crypto objects
+# Phase 2.1: also build CHybridPubKey (hybrid address data structure)
 ifeq ($(LIBOQS_AVAILABLE),yes)
-OBJS += obj/mldsa.o obj/mldsa_cache.o
+OBJS += obj/mldsa.o obj/mldsa_cache.o obj/hybridpubkey.o
 endif
 
 
