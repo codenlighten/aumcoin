@@ -160,15 +160,18 @@ BOOST_AUTO_TEST_CASE(max_ops_per_script_over_boundary_fails)
     BOOST_CHECK(!VerifyScript(scriptSig, scriptPubKey, tx, 0, false, SIGHASH_NONE));
 }
 
-// M1.4 — weighted cost budget. OP_CHECKMLDSASIG costs 100 cost units
-// per OP_COST_CHECKMLDSASIG. 200 invocations consume the entire 20000-unit
+// M1.4 — weighted cost budget. OP_CHECKMLDSASIG costs 100 cost units per
+// OP_COST_CHECKMLDSASIG. 200 invocations consume the entire 20000-unit
 // budget; the 201st must trip the budget even when each individual op is
 // well under the count limit.
 //
-// Note: in a no-ENABLE_MLDSA build, OP_CHECKMLDSASIG is OP_NOP4 (no-op
-// success). The cost accounting in EvalScript fires regardless of which
-// branch handles the opcode, which is exactly the invariant we want — the
-// consensus rule must not depend on the verifier's choice of crypto stack.
+// At-boundary "passes" can only be verified in a no-ENABLE_MLDSA build,
+// where OP_CHECKMLDSASIG aliases OP_NOP4 (no-op success). In an
+// ENABLE_MLDSA build, OP_CHECKMLDSASIG actually pops sig+pubkey from the
+// stack and returns false when those aren't valid, which would mask the
+// cost-passes assertion. Real ML-DSA-enabled cost-budget tests require
+// valid signatures and are tracked as M1.3 follow-up work.
+#ifndef ENABLE_MLDSA
 BOOST_AUTO_TEST_CASE(mldsa_cost_budget_at_boundary_passes)
 {
     CScript scriptSig;
@@ -182,6 +185,12 @@ BOOST_AUTO_TEST_CASE(mldsa_cost_budget_at_boundary_passes)
     CTransaction tx;
     BOOST_CHECK(VerifyScript(scriptSig, scriptPubKey, tx, 0, false, SIGHASH_NONE));
 }
+#endif
+
+// Over-boundary cost check fires at EvalScript dispatch BEFORE the
+// per-opcode handler — so the cost-budget reject happens identically
+// whether OP_CHECKMLDSASIG is the NOP4 alias or the real ML-DSA verify.
+// This is the consensus invariant we want.
 
 BOOST_AUTO_TEST_CASE(mldsa_cost_budget_over_boundary_fails)
 {
