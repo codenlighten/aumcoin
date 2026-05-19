@@ -266,6 +266,8 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
     // if (script.size() > 10000)
     //     return false;
     int nOpCount = 0;
+    // M1.4: weighted per-script cost budget (see MAX_SCRIPT_OP_COST in script.h).
+    int nOpCost = 0;
 
 
     try
@@ -282,8 +284,21 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
             // SATOSHI VISION: Increased push value size from 520 bytes to 10KB
             if (vchPushValue.size() > 10240)
                 return false;
-            if (opcode > OP_16 && ++nOpCount > 201)
-                return false;
+            if (opcode > OP_16)
+            {
+                // M1.4: raised from 201 (Bitcoin) to MAX_OPS_PER_SCRIPT (20000).
+                if (++nOpCount > MAX_OPS_PER_SCRIPT)
+                    return false;
+                // M1.4: per-opcode weighted cost. Default 1; ML-DSA is 100x ECDSA.
+                // CHECKMULTISIG adds its (nKeysCount-1) excess inside the handler
+                // once the pubkey count is known from the stack.
+                int nThisOpCost = 1;
+                if (opcode == OP_CHECKMLDSASIG || opcode == OP_CHECKMLDSASIGVERIFY)
+                    nThisOpCost = OP_COST_CHECKMLDSASIG;
+                nOpCost += nThisOpCost;
+                if (nOpCost > MAX_SCRIPT_OP_COST)
+                    return false;
+            }
 
             // SATOSHI VISION RESTORATION: All original OP_CODES now enabled!
             // Removed OP_CODE blocking that was added in Bitcoin 0.3.x
@@ -1050,8 +1065,16 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     int nKeysCount = CastToBigNum(stacktop(-i)).getint();
                     if (nKeysCount < 0 || nKeysCount > 20)
                         return false;
+                    // M1.4: count each pubkey as both an op and a cost unit
+                    // (1 cost ≈ 1 ECDSA verify; CHECKMULTISIG runs nKeysCount
+                    // ECDSA verifies under the hood). The +1 for the
+                    // CHECKMULTISIG opcode itself was already charged at the
+                    // dispatch entry above.
                     nOpCount += nKeysCount;
-                    if (nOpCount > 201)
+                    if (nOpCount > MAX_OPS_PER_SCRIPT)
+                        return false;
+                    nOpCost += nKeysCount;
+                    if (nOpCost > MAX_SCRIPT_OP_COST)
                         return false;
                     int ikey = ++i;
                     i += nKeysCount;
